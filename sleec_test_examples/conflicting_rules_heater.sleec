@@ -1,0 +1,24 @@
+def_start
+    // Events
+    event HeaterOn
+    event CoolerOn
+    event TempChangeRequest
+
+    // Measures
+    measure temperature: numeric
+    measure desiredTemp: numeric
+    measure isManualOverride: boolean
+
+def_end
+
+rule_start
+    // If the temperature is below the desired temperature and there is no manual override, turn the heater on
+    // This rule conflicts with R2 if the temperature is also above the desired temperature (which shouldn't happeny)
+    R1 when TempChangeRequest and ({temperature} < {desiredTemp}) and (not {isManualOverride}) then HeaterOn
+
+    // If the temperature is above the desired temperature and there is no manual override, turn the cooler on
+    // This rule conflicts with R1 if the temperature is also below the desired temperature
+    R2 when TempChangeRequest and ({temperature} > {desiredTemp}) and (not {isManualOverride}) then CoolerOn
+
+    // But heater on and cooler on do not inherently conflict - if you wanted them to you would have to say so in the concerns section 
+rule_end    

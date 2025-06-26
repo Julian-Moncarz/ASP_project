@@ -1,0 +1,22 @@
+def_start
+    // Events
+    event MotionDetected
+    event AlarmSound
+    event NotifyUser
+
+    // Measures
+    measure isArmed: boolean
+    measure motionCount: numeric
+
+    // Constants
+    constant maxMotions = 3
+    constant notifyDelay = 2
+
+def_end
+
+rule_start
+    // If motion is detected, the system is armed, and the number of motions exceeds the maximum, sound the alarm within 1 minute
+    R1 when MotionDetected and {isArmed} and ({motionCount} > maxMotions) then AlarmSound within 1 minute
+    // When the alarm sounds, notify the user within the notification delay
+    R2 when AlarmSound then NotifyUser within notifyDelay minutes
+rule_end 

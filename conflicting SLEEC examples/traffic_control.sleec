@@ -1,0 +1,47 @@
+def_start
+    // Events
+    event EmergencyVehicleApproach
+    event RegularTrafficFlow
+    event PedestrianCrossing
+    event TrafficLightChange
+    event EmergencyOverride
+
+    // Measures
+    measure trafficDensity: numeric
+    measure pedestrianCount: numeric
+    measure emergencyPriority: scale(low, medium, high)
+    measure weatherCondition: scale(clear, rain, snow)
+    measure timeOfDay: numeric
+    measure isRushHour: boolean
+
+    // Constants
+    constant maxTrafficDensity = 100
+    constant maxPedestrians = 50
+    constant rushHourStart = 7
+    constant rushHourEnd = 9
+    constant eveningRushStart = 17
+    constant eveningRushEnd = 19
+def_end
+
+rule_start
+    // Emergency protocol: Give priority to emergency vehicles
+    R1 when EmergencyVehicleApproach and ({emergencyPriority} = high) then EmergencyOverride
+
+    // Traffic flow optimization: Maintain regular flow during rush hours
+    R2 when RegularTrafficFlow and {isRushHour} and ({trafficDensity} > maxTrafficDensity/2) then TrafficLightChange
+
+    // Pedestrian safety: Stop traffic for pedestrian crossings
+    R3 when PedestrianCrossing and ({pedestrianCount} > 0) then TrafficLightChange
+
+    // Weather safety: Reduce traffic flow in poor weather
+    R4 when RegularTrafficFlow and ({weatherCondition} = snow) and ({trafficDensity} > maxTrafficDensity/3) then TrafficLightChange
+
+    // Rush hour emergency: Balance emergency and traffic flow
+    R5 when EmergencyVehicleApproach and {isRushHour} and ({trafficDensity} > maxTrafficDensity*0.8) then not EmergencyOverride
+
+    // This creates conflicts when:
+    // - Emergency vehicle during rush hour with high traffic (R1 vs R5)
+    // - Emergency vehicle with pedestrians crossing (R1 vs R3)
+    // - High traffic with pedestrians during rush hour (R2 vs R3)
+    // - Emergency vehicle in poor weather with traffic (R1 vs R4)
+rule_end 

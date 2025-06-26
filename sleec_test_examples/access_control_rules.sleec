@@ -1,0 +1,16 @@
+def_start
+    // Events
+    event UserRequestAccess
+    event AccessGranted
+    event AccessDenied
+
+    // Measures
+    measure securityLevel: scale(low, medium, high) //of the info they want to access
+    measure isAdmin: boolean
+
+def_end
+
+rule_start
+    // If a user requests access and the security level is high and the user is not an admin, deny access; otherwise, grant access
+    R1 when UserRequestAccess and (({securityLevel} = high) and (not {isAdmin})) then AccessDenied otherwise AccessGranted
+rule_end 

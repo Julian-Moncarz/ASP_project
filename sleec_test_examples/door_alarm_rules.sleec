@@ -1,0 +1,14 @@
+def_start
+    // Events
+    event DoorOpen
+    event AlarmActivate
+
+    // Measures
+    measure isLocked: boolean
+
+def_end
+
+rule_start
+    // If the door is opened and it is not locked, activate the alarm
+    R1 when DoorOpen and (not {isLocked}) then AlarmActivate
+rule_end 

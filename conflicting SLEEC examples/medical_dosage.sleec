@@ -1,0 +1,40 @@
+def_start
+    // Events
+    event PatientArrival
+    event AdministerMedication
+    event WithholdMedication
+    event EmergencyAlert
+
+    // Measures
+    measure patientAge: numeric
+    measure bloodPressure: numeric
+    measure heartRate: numeric
+    measure hasAllergy: boolean
+    measure isEmergency: boolean
+    measure medicationLevel: numeric
+
+    // Constants
+    constant maxDosage = 100
+    constant minBloodPressure = 90
+    constant maxHeartRate = 120
+    constant criticalAge = 65
+def_end
+
+rule_start
+    // Standard protocol: Administer medication if patient is stable and no allergies
+    R1 when PatientArrival and (not {hasAllergy}) and ({bloodPressure} >= minBloodPressure) and ({heartRate} <= maxHeartRate) then AdministerMedication
+
+    // Emergency protocol: Administer medication immediately for critical patients regardless of other conditions
+    R2 when PatientArrival and {isEmergency} then AdministerMedication
+
+    // Safety protocol: Withhold medication if patient has allergies or unstable vitals
+    R3 when PatientArrival and ({hasAllergy} or ({bloodPressure} < minBloodPressure) or ({heartRate} > maxHeartRate)) then WithholdMedication
+
+    // Elderly protocol: Reduce dosage for elderly patients
+    R4 when AdministerMedication and ({patientAge} >= criticalAge) and ({medicationLevel} > maxDosage) then WithholdMedication
+
+    // This creates conflicts when:
+    // - Emergency patient has allergies (R2 vs R3)
+    // - Elderly emergency patient with high medication level (R2 vs R4)
+    // - Patient has unstable vitals but is emergency (R1 vs R3)
+rule_end 
