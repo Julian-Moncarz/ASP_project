@@ -1,11 +1,13 @@
+# SLEEC Converter Package
 """
-SLEEC to Clingo Converter Package
+Package for converting SLEEC rules to different Clingo formats.
 
-This package provides tools to automatically convert SLEEC rules into 
-Clingo (Answer Set Programming) format.
+Available converters:
+- SleecToClingoConverter: Original converter following ASPEN.lp style
+- CorrectSleecConverter: Dalal's approach with antecedent/consequent structure
 """
 
 from .sleec_to_clingo_converter import SleecToClingoConverter
+from .correct_sleec_converter import CorrectSleecConverter
 
-__version__ = "1.0.0"
-__all__ = ["SleecToClingoConverter"] 
+__all__ = ['SleecToClingoConverter', 'CorrectSleecConverter'] 

@@ -2,7 +2,6 @@ def_start
     // Events
     event PatientArrival
     event AdministerMedication
-    event WithholdMedication
     event EmergencyAlert
 
     // Measures
@@ -28,10 +27,10 @@ rule_start
     R2 when PatientArrival and {isEmergency} then AdministerMedication
 
     // Safety protocol: Withhold medication if patient has allergies or unstable vitals
-    R3 when PatientArrival and ({hasAllergy} or ({bloodPressure} < minBloodPressure) or ({heartRate} > maxHeartRate)) then WithholdMedication
+    R3 when PatientArrival and ({hasAllergy} or ({bloodPressure} < minBloodPressure) or ({heartRate} > maxHeartRate)) then not AdministerMedication
 
     // Elderly protocol: Reduce dosage for elderly patients
-    R4 when AdministerMedication and ({patientAge} >= criticalAge) and ({medicationLevel} > maxDosage) then WithholdMedication
+    R4 when PatientArrival and ({patientAge} >= criticalAge) and ({medicationLevel} > maxDosage) then not AdministerMedication
 
     // This creates conflicts when:
     // - Emergency patient has allergies (R2 vs R3)

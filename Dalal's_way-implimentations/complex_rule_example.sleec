@@ -1,0 +1,26 @@
+def_start
+    // Events
+    event OpenDoor
+    event PlaySound
+
+    // Measures  
+    measure isDaytime: boolean
+    measure isWeekend: boolean
+    measure isRaining: boolean
+    measure isWindy: boolean
+
+def_end
+
+rule_start
+    // COMPLEX RULE REQUIRING NORMALIZATION:
+    // This rule has nested logical operators that would need to be broken down
+    // Original: When (OpenDoor and ({isDaytime} or {isWeekend})) and not ({isRaining} and {isWindy}) then PlaySound and TurnOnLights
+    
+    // This demonstrates a complex rule that would require normalization because:
+    // 1. Nested AND/OR: (OpenDoor and ({isDaytime} or {isWeekend}))
+    // 2. Negated complex condition: not ({isRaining} and {isWindy})  
+    // 3. Multiple consequents: PlaySound and TurnOnLights
+    
+    R1 when OpenDoor and (({isDaytime} or {isWeekend}) and not ({isRaining} and {isWindy})) then PlaySound
+
+rule_end 

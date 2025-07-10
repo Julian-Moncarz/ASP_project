@@ -353,11 +353,7 @@ class SleecToClingoConverter:
     
     def _convert_condition_to_clingo(self, condition: str) -> str:
         """Convert a SLEEC condition to Clingo format"""
-        # Replace logical operators
-        condition = condition.replace(' and ', ', ')
-        condition = condition.replace(' or ', ' ; ')
-        
-        # Convert measure references {measure} to holds(measure, T)
+        # First, convert measure references {measure} to holds(measure, T)
         # Handle comparisons like {measure} = value
         condition = re.sub(r'\{(\w+)\}\s*=\s*(\w+)', lambda m: f'holds({m.group(1).lower()}, {m.group(2)}, T)', condition)
         condition = re.sub(r'\{(\w+)\}\s*<\s*(\w+)', lambda m: f'holds({m.group(1).lower()}, V, T), measure_less_than({m.group(1).lower()}, V, {m.group(2)})', condition)
@@ -369,6 +365,19 @@ class SleecToClingoConverter:
         # Convert event references to happens(event, T)
         for event in self.events:
             condition = re.sub(rf'\b{event.name}\b', f'happens({event.name.lower()}, T)', condition)
+        
+        # Remove unnecessary parentheses that cause syntax errors in Clingo
+        # Only remove parentheses that are used for logical grouping, not function arguments
+        # Pattern: ( ... and ... ) or ( ... or ... ) -> ... and ... / ... or ...
+        condition = re.sub(r'\(([^()]*(?:\band\b|\bor\b)[^()]*)\)', r'\1', condition)
+        
+        # Now replace logical operators (after event/measure conversion)
+        condition = condition.replace(' and ', ', ')
+        condition = condition.replace(' or ', ' ; ')
+        
+        # Remove specific logical grouping parentheses that still remain
+        # This pattern matches outer parentheses around multiple holds() calls
+        condition = re.sub(r'\((\s*holds\([^)]+\),\s*holds\([^)]+\)\s*)\)', r'\1', condition)
         
         # Handle negation
         condition = re.sub(r'not\s+happens\((\w+),\s*T\)', r'not happens(\1, T)', condition)
