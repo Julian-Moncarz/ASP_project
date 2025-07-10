@@ -646,7 +646,7 @@ Rule9 **when** CheckUnderstanding **and** (({userPayingAttention}
 // Identify the user\'s physical and psychological states. Examine the
 severity of those states.
 
-Rule10 **when** MeetingUser **then** ExamineState
+Rule10 **when** MeetingUser **then** ExamineStatex
 
 // If severity surpasses a certain threshold, avoid approaching them.
 

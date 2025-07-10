@@ -6,7 +6,6 @@ def_start
     // Measures
     measure isBlacklisted: boolean
     measure hasValidCredentials: boolean
-
 def_end
 
 rule_start

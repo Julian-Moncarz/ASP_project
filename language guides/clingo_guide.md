@@ -6,25 +6,26 @@ Clingo is a grounder and solver for Answer Set Programming (ASP) - a declarative
 
 ## ASP Symbol Reference Table
 
-| Symbol | Natural Language Translation | Example |
-|--------|------------------------------|---------|
-| `.` | "This is a fact" | `color(red).` → "Red is a color" |
-| `:-` | "IF ... THEN ..." or "This is true when..." | `bird(X) :- penguin(X).` → "X is a bird IF X is a penguin" |
-| `:` | "Such that" or "Where" | `1 { lassign(X,Y) : task(Y) } 1` → "Assign exactly one Y to X where Y is a task" |
-| `,` | "AND" | `happy(X) :- healthy(X), wealthy(X).` → "X is happy IF X is healthy AND wealthy" |
-| `;` | "OR" (in choice) | `color(red;blue;green).` → "Color is red OR blue OR green" |
-| `-` | "NOT" (classical negation) | `-married(john).` → "John is NOT married" |
-| `not` | "There is no proof that..." (default negation) | `single(X) :- person(X), not married(X).` → "X is single IF X is a person AND there's no proof X is married" |
-| `{ }` | "Choose from these options" | `{ selected(X) : item(X) }.` → "Choose any number of items X to be selected" |
-| `m { } n` | "Choose at least m and at most n" | `2 { team(X) : player(X) } 5.` → "Choose between 2 and 5 players for the team" |
-| `:-` (alone) | "It must not be the case that..." (constraint) | `:- edge(X,Y), color(X,C), color(Y,C).` → "It must not be that adjacent nodes X and Y have the same color C" |
-| `..` | "Range from ... to ..." | `number(1..10).` → "Number is 1 to 10" |
-| `#show` | "Display only these predicates" | `#show selected/1.` → "Only show the selected items in the output" |
-| `/n` | "Predicate arity (number of arguments)" | `#show starts/3.` → "Show the predicate 'starts' that has exactly 3 arguments" |
-| `#count{}` | "Aggregate: count number of elements in a set" | `N = #count{ X : p(X), q(X) }.` → "N is the number of X such that p(X) and q(X) hold" |
-| `=` | "Equals" | `X = Y+1` → "X equals Y plus 1" |
-| `!=` | "Not equals" | `X != Y` → "X is different from Y" |
-| `<`, `>`, `<=`, `>=` | Comparison operators | `X < 10` → "X is less than 10" |
+
+| Symbol               | Natural Language Translation                   | Example                                                                                                       |
+| ---------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `.`                  | "This is a fact"                               | `color(red).` → "Red is a color"                                                                             |
+| `:-`                 | "IF ... THEN ..." or "This is true when..."    | `bird(X) :- penguin(X).` → "X is a bird IF X is a penguin"                                                   |
+| `:`                  | "Such that" or "Where"                         | `1 { lassign(X,Y) : task(Y) } 1` → "Assign exactly one Y to X where Y is a task"                             |
+| `,`                  | "AND"                                          | `happy(X) :- healthy(X), wealthy(X).` → "X is happy IF X is healthy AND wealthy"                             |
+| `;`                  | "OR" (in choice)                               | `color(red;blue;green).` → "Color is red OR blue OR green"                                                   |
+| `-`                  | "NOT" (classical negation)                     | `-married(john).` → "John is NOT married"                                                                    |
+| `not`                | "There is no proof that..." (default negation) | `single(X) :- person(X), not married(X).` → "X is single IF X is a person AND there's no proof X is married" |
+| `{ }`                | "Choose from these options"                    | `{ selected(X) : item(X) }.` → "Choose any number of items X to be selected"                                 |
+| `m { } n`            | "Choose at least m and at most n"              | `2 { team(X) : player(X) } 5.` → "Choose between 2 and 5 players for the team"                               |
+| `:-` (alone)         | "It must not be the case that..." (constraint) | `:- edge(X,Y), color(X,C), color(Y,C).` → "It must not be that adjacent nodes X and Y have the same color C" |
+| `..`                 | "Range from ... to ..."                        | `number(1..10).` → "Number is 1 to 10"                                                                       |
+| `#show`              | "Display only these predicates"                | `#show selected/1.` → "Only show the selected items in the output"                                           |
+| `/n`                 | "Predicate arity (number of arguments)"        | `#show starts/3.` → "Show the predicate 'starts' that has exactly 3 arguments"                               |
+| `#count{}`           | "Aggregate: count number of elements in a set" | `N = #count{ X : p(X), q(X) }.` → "N is the number of X such that p(X) and q(X) hold"                        |
+| `=`                  | "Equals"                                       | `X = Y+1` → "X equals Y plus 1"                                                                              |
+| `!=`                 | "Not equals"                                   | `X != Y` → "X is different from Y"                                                                           |
+| `<`, `>`, `<=`, `>=` | Comparison operators                           | `X < 10` → "X is less than 10"                                                                               |
 
 ## Input Format
 
@@ -33,6 +34,7 @@ Clingo programs consist of **rules** written in ASP syntax. Here's what inputs l
 ### Basic Syntax Elements:
 
 1. **Facts** - Simple statements about what's true:
+
 ```prolog
 % Facts about colors
 color(red).
@@ -45,6 +47,7 @@ object(box).
 ```
 
 2. **Rules** - Derive new facts from existing ones:
+
 ```prolog
 % If X is a primary color, it's also a color
 primary(red).
@@ -53,12 +56,14 @@ is_color(X) :- primary(X).
 ```
 
 3. **Choice Rules** - Generate possibilities:
+
 ```prolog
 % Choose exactly one color for each object
 1 { has_color(X,C) : color(C) } 1 :- object(X).
 ```
 
 4. **Constraints** - Eliminate unwanted solutions:
+
 ```prolog
 % No two adjacent objects can have the same color
 :- adjacent(X,Y), has_color(X,C), has_color(Y,C).
@@ -83,6 +88,7 @@ has_color(ball,green) has_color(box,red)
 ## Example Problems Clingo Can Solve
 
 ### 1. **Graph Coloring**
+
 ```prolog
 % Nodes
 node(1..4).
@@ -103,6 +109,7 @@ color(red;green;blue).
 ```
 
 ### 2. **Sudoku Solver**
+
 ```prolog
 % Define grid positions
 pos(1..9,1..9).
@@ -130,6 +137,7 @@ sudoku(1,1,5). sudoku(1,2,3).
 ```
 
 ### 3. **Scheduling Problems**
+
 ```prolog
 % Time slots
 time(1..5).
@@ -162,11 +170,13 @@ task(meeting_a; meeting_b; lunch; coding).
 ## Running Clingo:
 
 Basic command:
+
 ```bash
 clingo input.lp
 ```
 
 With options:
+
 ```bash
 clingo input.lp -n 0  # Show all answer sets
 clingo input.lp -n 5  # Show first 5 answer sets

@@ -1,16 +1,14 @@
 % =============================================================================
-% ASPEN Implementation in Clingo
+% ASPEN Rules R1 and R2 Implementation in Clingo
 % =============================================================================
 % 
-% This file implements the ASPEN (Autonomous System Policy Engine) rules using
+% This file implements only rules R1 and R2 from the ASPEN policy using
 % Answer Set Programming (ASP) with Clingo syntax.
 %
-% Core Rules Implemented:
+% Rules Implemented:
 % - Rule 1: when EncounterHuman and ({sameLanguage} and {humanUnderstands}) then InformHuman
 % - Rule 2: when EncounterHuman then IdentifyActivity  
 % - Rule 2_1: when IdentifyActivity and {unrelatedActivity} then not StoreData
-% - Rule 11: when DeployDrone and ({flightCondition} < safe) then ReturnHome 
-%            unless ({flightCondition} = dangerous) then GroundDrone
 % =============================================================================
 
 % =============================================================================
@@ -22,23 +20,19 @@ time(0..10).
 % =============================================================================
 % EVENT DEFINITIONS
 % =============================================================================
-% Define all possible events that can occur in the system
+% Define only the events needed for R1 and R2
 event(encounterHuman).    % Human encounter event
 event(informHuman).       % Inform human action
 event(identifyActivity).  % Activity identification
 event(storeData).         % Data storage action
-event(deployDrone).       % Drone deployment
-event(returnHome).        % Return home action
-event(groundDrone).       % Ground drone action
 
 % =============================================================================
 % MEASURE DEFINITIONS
 % =============================================================================
-% Define all measures that can be evaluated
+% Define only the measures needed for R1 and R2
 measure(sameLanguage).      % Boolean: same language available
 measure(humanUnderstands).  % Boolean: human understands
 measure(unrelatedActivity). % Boolean: activity is unrelated
-measure(flightCondition).   % Scale: dangerous/unsafe/safe/ideal
 
 % =============================================================================
 % MEASURE INSTANTIATION
@@ -49,27 +43,17 @@ measure(flightCondition).   % Scale: dangerous/unsafe/safe/ideal
 { holds(humanUnderstands, T) } :- time(T).
 { holds(unrelatedActivity, T) } :- time(T).
 
-% Scale measure: flightCondition must have exactly one value at each time
-% The values are ordered: dangerous < unsafe < safe < ideal
-1 { holds(flightCondition, dangerous, T) ; 
-    holds(flightCondition, unsafe, T) ; 
-    holds(flightCondition, safe, T) ; 
-    holds(flightCondition, ideal, T) } 1 
-    :- time(T).
-
 % =============================================================================
 % TRIGGERING EVENT INSTANTIATION
 % =============================================================================
-% These events can occur independently at each timestep
-% The solver will choose when these triggering events happen
+% EncounterHuman can occur independently at each timestep
 { happens(encounterHuman, T) } :- time(T).
-{ happens(deployDrone, T) } :- time(T).
 
 % =============================================================================
-% ASPEN RULE IMPLEMENTATIONS
+% ASPEN RULE IMPLEMENTATIONS - R1 and R2 ONLY
 % =============================================================================
 
-% - Rule 1: when EncounterHuman and ({sameLanguage} and {humanUnderstands}) then InformHuman
+% Rule 1: when EncounterHuman and ({sameLanguage} and {humanUnderstands}) then InformHuman
 % Condition: encounterHuman AND sameLanguage AND humanUnderstands
 % Action: informHuman
 happens(informHuman, T) :- 
@@ -93,31 +77,12 @@ nothappens(storeData, T) :-
     holds(unrelatedActivity, T), 
     time(T).
 
-% Rule 11: When DeployDrone occurs and flightCondition < safe, ReturnHome must happen
-% Unless flightCondition = dangerous, then GroundDrone must happen instead
-
-% Case 1: flightCondition = unsafe (and not dangerous) -> ReturnHome
-happens(returnHome, T) :- 
-    happens(deployDrone, T),
-    holds(flightCondition, unsafe, T),
-    not holds(flightCondition, dangerous, T),
-    time(T).
-
-% Case 2: flightCondition = dangerous -> GroundDrone
-happens(groundDrone, T) :- 
-    happens(deployDrone, T),
-    holds(flightCondition, dangerous, T),
-    time(T).
-
-
-
 % =============================================================================
-% CONTRADICTORY RULE FOR TESTING
+% CONTRADICTORY RULE FOR TESTING (optional)
 % =============================================================================
 % This rule creates a contradiction with Rule 2_1 to test conflict detection
 % Rule: When IdentifyActivity occurs, StoreData happens
-happens(storeData, T) :- happens(identifyActivity, T), time(T).
-
+% happens(storeData, T) :- happens(identifyActivity, T), time(T).
 
 % =============================================================================
 % CONTRADICTION DETECTION
@@ -125,24 +90,10 @@ happens(storeData, T) :- happens(identifyActivity, T), time(T).
 % Detect when an event both happens and doesn't happen (contradiction)
 contradiction(E, T) :- happens(E, T), nothappens(E, T), event(E), time(T).
 
-% Ensure at least one contradiction exists
-% This forces the solver to find scenarios where rules conflict
-% :- not 1 { contradiction(E, T) : event(E), time(T) }.
-
 % =============================================================================
 % OUTPUT SPECIFICATION
 % =============================================================================
-
-
-% TESTING RULE 11
-% Enforce that flightCondition is dangerous at all times
-%:- time(T), not holds(flightCondition, unsafe, T).
-% Enforce that deployDrone must happen at every time
-%:- time(T), not happens(deployDrone, T).
-
-
 % Specify what information to show in the answer sets
-%#show contradiction/2.    % Show all contradictions
-%#show nothappens/2.       % Show all events that are prevented from happening
 #show happens/2.          % Show all events that happen
-#show holds/3.
+#show holds/2.            % Show all measure values
+#show contradiction/2.    % Show any contradictions 

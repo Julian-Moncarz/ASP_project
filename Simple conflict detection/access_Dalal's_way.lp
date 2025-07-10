@@ -17,7 +17,7 @@ eot(10).
 
 action(userLogin).
 action(accessGranted).
-action(not_accessGranted)
+action(not_accessGranted).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % MEASURES
