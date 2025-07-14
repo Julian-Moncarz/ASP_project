@@ -16,19 +16,9 @@ Usage:
 
 import re
 import textwrap
-import sys
-import os
 from typing import List, Dict, Tuple, Optional, Set
 
-# Add parent directory to path to import shared parser
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-try:
-    from parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
-except ImportError:
-    # If import fails, try relative import
-    import sys
-    sys.path.append('..')
-    from parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
+from .parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
 
 class SleecToClingoConverter:
     """Converts SLEEC rules to Clingo format"""
