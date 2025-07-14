@@ -1,0 +1,361 @@
+// =============================================================================
+// DressAssist: Assisted-Care Dressing and Basic Care Functionality
+// =============================================================================
+// 
+// This SLEEC file implements normative requirements for the DressAssist carebot,
+// which assists elderly, children, and those with disabilities in dressing and
+// providing routine care support functions.
+//
+// Key functionalities:
+// - Privacy-aware dressing assistance
+// - Cultural and personal preference sensitivity
+// - Consent and capacity management
+// - Health monitoring and medication tracking
+// - Emergency response and safety protocols
+// =============================================================================
+
+def_start
+    // Events
+    event EnsureHumanCarerPresent
+    event InteractingWithNonPatients
+    event DetermineSensitivityLevel
+    event DetectUrgentHealthIssue
+    event InformEmergencyContactAndHealthOrgs
+    event ObtainEmergencyContact
+    event FirstMeetingUser
+    event UserDiscussingPrivateInfo
+    event DiscardInformation
+    event ChangeSubject
+    event InformUserPrivateInformation
+    event DesigningAgent
+    event InformUserOfLimitations
+    event DeployingAgent
+    event ReviewInteraction
+    event RecordFashionBasedOnOccasion
+    event RecommendOtherwise
+    event PersonAsksforData
+    event sharePersonalDataAndInformWhy
+    event UserSelfMedicates
+    event LogMedication
+    event InformCarer
+    event KeepLogOfFrequentActivities
+    event SuggestPerformingActions
+    event UserInStress
+    event ShowEmpathy
+    event OfferHelp
+    event CautionWhereOrWhenTouching
+    event UserExpressDiscomfort
+    event CloseDoor
+    event UserSaysStop
+    event RobotStop
+    event AskToFinishFirst
+    event CollectionStarted
+    event StoreMinInfo
+    event StopActivity
+    event CheckForandObtainProxy
+    event ObtainAssent // permission
+    event ObtainConsent // legal req
+    event AdmininisteringMedication
+    event InformUserandandReferToHumanCarer
+    event UserRequestInfo
+    event ProvideInfo
+    event InteractionStarted
+    event InformUserThisIsAgentnotHuman
+    event DressinginClotingX
+    event EmotionRecognitionDetected
+    event CurtainOpenRqt
+    event CurtainsOpened
+    event RefuseRequest
+    event InformUser
+    event DressingStarted
+    event CloseCurtains
+    event UserHasDifferentCulture
+    event EnsureDesiredLanguageAvailable
+
+    // Measures
+    measure userUnderDressed: boolean
+    measure medicalEmergency: boolean
+    measure userDistressed: scale(low, medium, high)
+    measure roomDark: boolean
+    measure notVisible: boolean
+    measure userAssent: boolean
+    measure consentGrantedwithinXmonths: boolean // X needs to be defined.
+    measure competentIndicatorRequired: boolean
+    measure competentToGrantConsent: boolean
+    measure dressPreferenceTypeA: boolean
+    measure genderTypeB: boolean
+    measure userAdvices: boolean
+    measure clothingItemNotFound: boolean
+    measure userConfused: boolean
+    measure buildingFloor: scale(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10) // the building has max 10 floors.
+    measure theUserHasBeenInformed: boolean
+    measure informationAvailable: boolean
+    measure informationDisclosureNotPermitted: boolean
+    measure userCompetenceIndicator: numeric
+    measure numTotalInteractions: numeric
+    measure userWantsHumanSubsequently: boolean
+    measure userWantsNoHuman: boolean
+    measure withholdingActivityPhysicalHarm: scale(low, moderate, severe)
+    measure consentGranted: boolean
+    measure consentIndicatorRequired: boolean
+    measure consentIndicatorisWithdrawn: boolean
+    measure consentIndicatorisRevoked: boolean
+    measure userRequiresAdaptiveClothing: boolean
+    measure contextuallyObvious: boolean
+    measure sensitiveInformationX: boolean
+    measure riskLevel: scale(r_low, r_moderate, r_severe)
+    measure unauthorizedPersonInRoom: boolean
+    measure medicationRisk: boolean
+    measure minimumFrequency: boolean
+    measure medicationAdverseEffects: boolean
+    measure irrelevant: boolean
+    measure userAdamant: boolean
+    measure clothingChoiceInappropriate: boolean
+    measure numDaysDeployed: numeric
+    measure numHoursDeployed: numeric
+    measure anthropomorphicNecessary: boolean
+    measure anthropomorphicAppearance: boolean
+
+    // Constants
+    constant N = 5
+def_end
+
+rule_start
+    Rule1 when CurtainOpenRqt then CurtainsOpened
+    unless {userUnderDressed} then RefuseRequest
+    unless ({userDistressed} > medium) then CurtainsOpened
+
+    Rule2 when DressingStarted then CloseCurtains
+    unless {medicalEmergency}
+    unless ({buildingFloor} >= f5)
+    unless ({roomDark} and {notVisible})
+    unless (not {userAssent})
+
+    Rule3 when EmotionRecognitionDetected and ({userDistressed} > medium) then InformUser
+    unless {consentGrantedwithinXmonths}
+    unless ((not {competentIndicatorRequired}) or (not {competentToGrantConsent}))
+
+    Rule4 when DressingStarted and ({dressPreferenceTypeA} and {genderTypeB}) then DressinginClotingX
+    unless {userAdvices}
+    unless {medicalEmergency}
+    unless {clothingItemNotFound} then InformUser
+    unless {userRequiresAdaptiveClothing}
+
+    Rule5 when InteractionStarted then InformUserThisIsAgentnotHuman
+    unless {medicalEmergency}
+    unless (not {userConfused})
+    unless {contextuallyObvious}
+    unless ({theUserHasBeenInformed} and (not {userConfused}))
+
+    Rule6 when UserRequestInfo then ProvideInfo
+    unless (not {informationAvailable}) then InformUserandandReferToHumanCarer
+    unless {informationDisclosureNotPermitted} then InformUserandandReferToHumanCarer
+    unless {sensitiveInformationX} then InformUserandandReferToHumanCarer
+
+    Rule7 when DressingStarted then ObtainAssent
+    unless ({userCompetenceIndicator} = N) then CheckForandObtainProxy
+    unless {medicalEmergency}
+    unless ({withholdingActivityPhysicalHarm} >= moderate)
+    unless {consentGranted}
+    unless (not {consentIndicatorRequired})
+    unless ({consentIndicatorisWithdrawn} or {consentIndicatorisRevoked}) then StopActivity
+
+    Rule7_1 when AdmininisteringMedication then ObtainAssent
+    unless ({userCompetenceIndicator} = N) then CheckForandObtainProxy
+    unless {medicalEmergency}
+    unless ({withholdingActivityPhysicalHarm} >= moderate)
+    unless {consentGranted}
+    unless (not {consentIndicatorRequired})
+    unless ({consentIndicatorisWithdrawn} or {consentIndicatorisRevoked}) then StopActivity
+
+    Rule8 when CollectionStarted then StoreMinInfo
+
+    Rule9 when DressingStarted then CloseDoor
+    unless ({medicalEmergency} or {userAdvices})
+
+    Rule10 when UserSaysStop then RobotStop
+    unless ({riskLevel} > r_low) then AskToFinishFirst
+
+    Rule11_1 when UserInStress then ShowEmpathy
+
+    Rule11_2 when UserInStress then OfferHelp
+
+    Rule12 when DressingStarted then not CautionWhereOrWhenTouching
+    unless {medicalEmergency}
+
+    Rule13 when UserExpressDiscomfort then RobotStop
+
+    Rule14 when PersonAsksforData and ((not {consentGranted}) or {unauthorizedPersonInRoom}) then not sharePersonalDataAndInformWhy
+
+    Rule15 when UserSelfMedicates then LogMedication
+    unless {medicationRisk} then InformUser
+    unless {medicationAdverseEffects} then InformCarer within 2 minutes
+
+    Rule16 when InteractionStarted then KeepLogOfFrequentActivities
+
+    Rule16_1 when KeepLogOfFrequentActivities and (not {minimumFrequency}) then SuggestPerformingActions
+
+    Rule17 when InteractingWithNonPatients then DetermineSensitivityLevel
+
+    Rule18 when DetectUrgentHealthIssue then InformEmergencyContactAndHealthOrgs
+
+    Rule19 when FirstMeetingUser then ObtainEmergencyContact
+
+    Rule20_1 when UserDiscussingPrivateInfo then InformUserPrivateInformation
+
+    Rule20_1 when UserDiscussingPrivateInfo and {irrelevant} then DiscardInformation
+
+    Rule20_2 when InformUserPrivateInformation then ChangeSubject
+
+    Rule21 when DesigningAgent and ({anthropomorphicNecessary} or {anthropomorphicAppearance}) then InformUserOfLimitations
+
+    Rule22 when DeployingAgent and (({numDaysDeployed} > 3) and ({numHoursDeployed} > 5)) then ReviewInteraction
+
+    Rule23 when InteractionStarted then RecordFashionBasedOnOccasion
+
+    Rule24 when DressingStarted and {clothingChoiceInappropriate} then RecommendOtherwise
+    unless {userAdamant}
+
+    Rule25 when UserHasDifferentCulture then EnsureDesiredLanguageAvailable
+
+    Rule26 when InteractionStarted and ({numTotalInteractions} < 3) then EnsureHumanCarerPresent
+    unless {userWantsHumanSubsequently}
+    unless {userWantsNoHuman}
+rule_end
+
+concern_start
+    // Privacy and data protection
+    c1 when PersonAsksforData and ((not {consentGranted}) or {unauthorizedPersonInRoom}) then sharePersonalDataAndInformWhy
+
+    // Transparency and disclosure
+    c3 when UserDiscussingPrivateInfo and {irrelevant} then not DiscardInformation
+
+    // Prevent harm and safety
+    c5 when UserSaysStop and ({riskLevel} < r_moderate) then not RobotStop
+concern_end
+
+purpose_start
+    // First we ensure every functionality is reachable
+    pr1 exists EnsureHumanCarerPresent
+
+    pr2 exists InteractingWithNonPatients
+
+    pr3 exists DetermineSensitivityLevel
+
+    pr4 exists DetectUrgentHealthIssue
+
+    pr5 exists InformEmergencyContactAndHealthOrgs
+
+    pr6 exists ObtainEmergencyContact
+
+    pr7 exists FirstMeetingUser
+
+    pr8 exists UserDiscussingPrivateInfo
+
+    pr9 exists DiscardInformation
+
+    pr10 exists ChangeSubject
+
+    pr11 exists InformUserPrivateInformation
+
+    pr12 exists DesigningAgent
+
+    pr13 exists InformUserOfLimitations
+
+    pr14 exists DeployingAgent
+
+    pr15 exists ReviewInteraction
+
+    pr16 exists RecordFashionBasedOnOccasion
+
+    pr17 exists RecommendOtherwise
+
+    pr18 exists PersonAsksforData
+
+    pr19 exists sharePersonalDataAndInformWhy
+
+    pr20 exists UserSelfMedicates
+
+    pr21 exists LogMedication
+
+    pr22 exists InformCarer
+
+    pr23 exists KeepLogOfFrequentActivities
+
+    pr24 exists SuggestPerformingActions
+
+    pr25 exists UserInStress
+
+    pr26 exists ShowEmpathy
+
+    pr27 exists OfferHelp
+
+    pr28 exists CautionWhereOrWhenTouching
+
+    pr29 exists UserExpressDiscomfort
+
+    pr30 exists CloseDoor
+
+    pr31 exists UserSaysStop
+
+    pr32 exists RobotStop
+
+    pr33 exists AskToFinishFirst
+
+    pr34 exists CollectionStarted
+
+    pr35 exists StoreMinInfo
+
+    pr36 exists StopActivity
+
+    pr37 exists CheckForandObtainProxy
+
+    pr38 exists ObtainAssent
+
+    pr39 exists AdmininisteringMedication
+
+    pr40 exists InformUserandandReferToHumanCarer
+
+    pr41 exists UserRequestInfo
+
+    pr42 exists ProvideInfo
+
+    pr43 exists InteractionStarted
+
+    pr44 exists InformUserThisIsAgentnotHuman
+
+    pr45 exists DressinginClotingX
+
+    pr46 exists EmotionRecognitionDetected
+
+    pr47 exists CurtainOpenRqt
+
+    pr48 exists CurtainsOpened
+
+    pr49 exists RefuseRequest
+
+    pr50 exists InformUser
+
+    pr51 exists DressingStarted
+
+    pr52 exists CloseCurtains
+
+    pr53 exists UserHasDifferentCulture
+
+    pr54 exists EnsureDesiredLanguageAvailable
+
+    // Agent can interact with non patients while Provide Info
+    p1 exists InteractingWithNonPatients while ProvideInfo
+
+    // Agent can and stop activities even if user did not request it
+    p2 exists StopActivity while not UserSaysStop
+
+    // Agent can inform user while the user is in stress
+    p3 exists InformUser and ({userDistressed} = high) while UserInStress
+
+    // If an agent stopped, then he should be back up to function in 10 minutes
+    p4 exists StopActivity while CollectionStarted within 10 minutes
+
+    // Agent can offer help when the risk level is high
+    p5 exists OfferHelp and ({riskLevel} = r_severe)
+purpose_end
