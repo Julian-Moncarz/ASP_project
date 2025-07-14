@@ -14,8 +14,8 @@ Shared utilities:
 """
 
 from .parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
-from .original_converter import SleecToClingoConverter
-from .dalal_converter import CorrectSleecConverter
+from .original import SleecToClingoConverter
+from .dalal import CorrectSleecConverter
 
 __all__ = [
     'SleecParser',

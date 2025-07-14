@@ -18,7 +18,7 @@ import re
 import textwrap
 from typing import List, Dict, Tuple, Optional, Set
 
-from .parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
+from ..parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
 
 class SleecToClingoConverter:
     """Converts SLEEC rules to Clingo format"""
