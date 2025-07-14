@@ -1,0 +1,239 @@
+// =============================================================================
+// BSN: Body Sensor Network for Healthcare Monitoring
+// =============================================================================
+// 
+// This SLEEC file implements normative requirements for the Body Sensor Network,
+// a healthcare application that continuously monitors patient health status and
+// adapts to maintain QoS levels while accounting for uncertainty.
+//
+// Key functionalities:
+// - Continuous vital signs monitoring
+// - Emergency detection and response
+// - Adaptive system management
+// - Privacy and consent management
+// - Data processing and storage
+// =============================================================================
+
+def_start
+    // BSN actions
+    event HideGeographicLocation
+    event ConfirmSensorPlacement
+    event ConfirmUsersActivities
+    event AdjustServiceTimerate
+    event AdjustSamplingRate
+    event CalibrateBSN
+    event EnsureHardwareCompliance
+
+    // Related to contacts and emergency
+    event EmergencyConfirmed
+    event CallAmbulance
+    event ObtainEmergencyContact
+
+    // Related to BSN and human interactions
+    event MeetingUser
+    event ObtainUserConsentForData
+    event ObtainUserConsentForSensors
+    event InformUser
+    event TrackVitals // With assumption that this is being done accurately
+    event InformBSNPurposeAndResponseProtocol
+    event CallCaregiver
+    event EnsureEasyStopping
+    event RemoveSensors
+    event CaregiverCanDeactivate
+
+    // Related to data
+    event DataCollected
+    event DeleteData
+    event AnonymizeData
+
+    // Patient actions
+    event patientOutdoors
+    event patientAsleep
+    event patientDoingChores
+    event patientBathing
+    event userWantsToRemoveSensors
+    event userCanCallEmergency
+    event adjustSensors
+    event userWantsTimeout
+    event systemShutDown
+    event obtainRiskLevel
+    event UserRequestRemoveSensor
+
+    // Measures
+    measure patientDiscomfort: scale{low, moderate, high}
+    measure riskLevel: scale{low, moderate, high}
+    measure batteryConsumption: scale{low, moderate, high}
+    measure numUsersKnown: boolean
+    measure numSampleKnown: boolean
+    measure canDeactivate: boolean
+    measure patientIsHome: boolean
+    measure signsImpaired: boolean
+    measure signsDetached: boolean
+    measure isWaterproof: boolean
+    measure hasFallAlertPendant: boolean
+    measure allowsBathroomTracking: boolean
+    measure canCommunicateRegularly: boolean
+    measure authorizedParties: boolean
+    measure emergencyDetected: boolean
+    measure messageOnTime: boolean
+    measure alternateSensorsDeployed: boolean
+    measure timeToFailureKnown: boolean
+    measure anomalyDetected: boolean
+    measure unusualActivity: boolean
+    measure sensorMalfunction: boolean
+    measure sensorMisplacement: boolean
+    measure userResponds: boolean
+    measure caregiverResponds: boolean
+    measure dataNeededForTraining: boolean
+    measure userWantsToStop: boolean
+    measure caregiverConsent: boolean
+    measure seeHealthHistory: boolean
+    measure seeDemographics: boolean
+    measure seeLocation: boolean
+    measure accurateHealthComparison: boolean
+    measure canPatientDeactivate: boolean
+    measure canCaregiverDeactivate: boolean
+
+    // Constants
+    constant autonomyConcern
+    constant bufferPeriod
+def_end
+
+rule_start
+    // Natural language rule 1
+    // Track no matter what comfort is, unless it is medium or high and the caregiver can deactivate
+    Rule1 when patientAsleep and {{patientDiscomfort} = low or {patientDiscomfort} = medium or {patientDiscomfort} = high} then trackVitals
+    unless {canDeactivate} and {{patientDiscomfort} > low} then caregiverCanDeactivate
+
+    // Natural language rule 2
+    Rule2 when patientDoingChores and {patientIsHome} then trackVitals
+    unless {{signsImpaired} or {signsDetached}} and {alternateSensorsDeployed}
+
+    // Natural language rule 3
+    Rule3 when patientBathing then trackVitals
+    unless {{not {isWaterproof}} and {hasFallAlertPendant}} or {not {allowsBathroomTracking}}
+
+    // Natural language rule 4
+    Rule4 when patientOutdoors and {not {patientIsHome}} then hideGeographicLocation
+    unless {canCommunicateRegularly}
+    unless {authorizedParties}
+    unless {emergencyDetected}
+
+    // Natural language rule 5
+    Rule5 when trackVitals and {not {messageOnTime}} and {not {numUsersKnown}} then adjustServiceTimerate
+
+    Rule5_1 when trackVitals and {not {messageOnTime}} and {not {numUsersKnown}} then not systemShutDown
+
+    // Natural language rule 6
+    Rule6 when trackVitals and {{not {timeToFailureKnown}} and {not {numSampleKnown}}} or {{batteryConsumption} = high} then adjustSamplingRate
+
+    Rule6_1 when trackVitals and {{not {timeToFailureKnown}} and {not {numSampleKnown}}} or {{batteryConsumption} = high} then not systemShutDown
+
+    // Natural language rule 7 part 1
+    // Because we can call for help whenever there is an emergency
+    Rule7 when emergencyConfirmed then callCaregiver
+
+    // Natural language rule 7 part 2
+    // But only inform caregiver when the risk level is medium or high
+    Rule7_1 when emergencyConfirmed and {{riskLevel} >= moderate} then callAmbulance
+
+    // If an anomaly in vital signals is detected ensure that they are not caused by circumstantial conditions.
+    // Confirm with user all sensors are properly placed
+    Rule8 when trackVitals and {anomalyDetected} then confirmSensorPlacement
+
+    // Confirm if the user is not performing any unusual physical activity
+    Rule8_1 when trackVitals and {anomalyDetected} then confirmUsersActivities
+
+    // If an anomaly in vital signals is detected but not caused by sensor malfunction, misplacement, or unusual activity, inform the user about it.
+    Rule9 when trackVitals and {anomalyDetected} and {not {unusualActivity}} and {not {sensorMalfunction}} and {not {sensorMisplacement}} then informUser
+
+    // If user does not respond to this information in any way, notify their emergency contact.
+    Rule9_1 when informUser and {not {userResponds}} then callCaregiver
+
+    // If emergency does not answer, call medical help.
+    Rule9_2 when callCaregiver and {not {caregiverResponds}} then callAmbulance
+
+    Rule10 when meetingUser then obtainUserConsentForData
+
+    // In first interaction with the user, inform them of the purposes of using this technology.
+    // inform them that the emergency contact can be contacted if the sensors detect anomalies in their vital signs.
+    // Inform them about what will happen in case the sensors malfunction and they do not respond
+    Rule11 when meetingUser then informBSNPurposeAndResponseProtocol
+
+    // Ask them for an emergency contact
+    Rule11_1 when meetingUser then obtainEmergencyContact
+
+    Rule12 when dataCollected and {not {dataNeededForTraining}} then deleteData
+    unless {dataNeededForTraining} then anonymizeData
+
+    Rule13 when trackVitals and {userWantsToStop} then ensureEasyStopping
+    unless {{riskLevel} > autonomyConcern}
+    // If risk to user from removal is low, then alert caregiver
+    otherwise callCaregiver
+
+    // Do not remove sensors without explicit consent from caregiver to do so
+    Rule13_1 when userWantsToRemoveSensors and {not {caregiverConsent}} then not removeSensors
+
+    Rule13_2 when userWantsToRemoveSensors then informUser
+
+    Rule13_3 when userWantsTimeout then informUser
+
+    // Inform/calibrate BSN signal so that the system doesn't overly interfere or cause stress
+    Rule14 when calibrateBSN and {seeHealthHistory} and {seeDemographics} and {seeLocation} and {accurateHealthComparison} then trackVitals
+
+    Rule15 when dataCollected then deleteData within bufferPeriod
+
+    // Hardware must not unreasonably interfere with user's culture and religious acts
+    Rule16 when meetingUser then ensureHardwareCompliance
+
+    // Ask user for consent prior to fitting BSN
+    Rule16_1 when meetingUser then obtainUserConsentForSensors
+
+    Rule17 when trackVitals then userCanCallEmergency
+
+    Rule18 when calibrateBSN then obtainRiskLevel
+rule_end
+
+concern_start
+    // Patient should not be able to remove sensors by himself.
+    c1 when userWantsToRemoveSensors and {not {caregiverConsent}} then removeSensors
+
+    c2 when trackVitals and {canDeactivate} and {{patientDiscomfort} > low} then not caregiverCanDeactivate
+
+    // The patient's privacy should be respected as much as possible. Patient should be able to select when they want a time out from the sensors. Patient should always be informed that their health monitoring will be decreased when they do it.
+    c3 when userWantsTimeout then not informUser
+
+    // If the patient does not want to wear the sensors due to privacy, the system should check in with the patient (via notifications). The system should also inform the user of the risks and tradeoffs between privacy and health as soon as they remove the sensors.
+    c4 when userWantsToRemoveSensors then not informUser
+
+    // System should not shut down if there is a flush of information (more than the system can handle).
+    c5 when trackVitals and {not {messageOnTime}} and {not {numUsersKnown}} then systemShutDown
+
+    // As soon as system is setup, user and caregiver does not ask about the level of risk of the patient.
+    c6 when calibrateBSN then not obtainRiskLevel
+concern_end
+
+purpose_start
+    // The purpose is to monitor a patient's health respecting their autonomy, safety, cultural differences, and privacy while protecting the user against security threats.
+
+    // Autonomy - User should be able to not disclose their geographic location while outdoors
+    P1 exists hideGeographicLocation and {not {patientIsHome}}
+
+    // Safety - BSN should be able to call a caregiver in case of an emergency
+    P2 exists callCaregiver while emergencyConfirmed
+
+    // Cultural difference
+    P3 exists ensureHardwareCompliance
+
+    // Privacy - BSN should be able to delete data when it is no longer necessary
+    P4 exists deleteData and {not {dataNeededForTraining}}
+
+    // Privacy - BSN should be able to anonymize data when it is being used
+    P5 exists anonymizeData and {dataNeededForTraining}
+
+    // Protect against threats
+    P6 exists callAmbulance and {{riskLevel} >= moderate}
+
+    // BSN should be able to inform user when an anomaly is detected while tracking vitals
+    P7 exists informUser and {anomalyDetected} while trackVitals
+purpose_end

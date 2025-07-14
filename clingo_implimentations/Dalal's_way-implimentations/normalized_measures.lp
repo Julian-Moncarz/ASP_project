@@ -1,12 +1,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                           COMPLEX SLEEC RULE REQUIRING NORMALIZATION
 %
-% Original SLEEC Rules (generic naming):
+% Original SLEEC Rule:
 % R1 when OpenDoor and (({isDaytime} or {isWeekend}) and not ({isRaining} and {isWindy})) then PlaySound
-% R2 when OpenDoor and (({isDaytime} or {isWeekend}) and not ({isRaining} and {isWindy})) then TurnOnLights
-%
-% SYSTEMATIC NORMALIZATION APPROACH:
-% This demonstrates a programmatic approach to normalizing complex SLEEC rules
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -16,7 +12,6 @@
 % Events
 event(openDoor).
 event(playSound).
-event(turnOnLights).
 
 % Measures
 measure(isDaytime).
@@ -43,40 +38,37 @@ exp(r1).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % ----------------------------- INTERMEDIATE CONDITIONS (REUSABLE) -----------
-% These follow a systematic naming pattern that could be auto-generated
 
-% Intermediate condition 1: Time-based disjunction
-% Pattern: ({isDaytime} or {isWeekend}) -> time_condition_good(T)
-time_condition_good(T) :-
+% Intermediate condition 1:
+% Pattern: ({isDaytime} or {isWeekend}) -> condition_1(T)
+condition_1(T) :-
     time(T),
     holds_at(isDaytime, T).
 
-time_condition_good(T) :-
+condition_1(T) :-
     time(T),
     holds_at(isWeekend, T).
 
-% Intermediate condition 2: Weather safety using De Morgan's law  
-% Pattern: not ({isRaining} and {isWindy}) -> weather_condition_safe(T)
-% Systematic application: not (A and B) becomes (not A) or (not B)
-weather_condition_safe(T) :-
+% Intermediate condition 2:
+% Pattern: not ({isRaining} and {isWindy}) -> condition_2(T)
+condition_2(T) :-
     time(T),
     not holds_at(isRaining, T).
 
-weather_condition_safe(T) :-
+condition_2(T) :-
     time(T),
     not holds_at(isWindy, T).
 
-% Combined antecedent condition (follows systematic pattern)
-% Pattern: Event and intermediate_condition_1 and intermediate_condition_2
+% Combined antecedent condition
+% Pattern: Event and condition_1 and condition_2
 complex_antecedent_satisfied(T) :-
     time(T),
     happens(openDoor, T),
-    time_condition_good(T),
-    weather_condition_safe(T).
+    condition_1(T),
+    condition_2(T).
 
 % ----------------------------- RULE-SPECIFIC MAPPINGS (PROGRAMMATIC) --------
-% Generic pattern: antecedent(RuleId, T) :- shared_complex_antecedent(T).
-% This allows multiple rules to share the same complex antecedent
+% Generic pattern: antecedent(RuleId, T) :- complex_antecedent_satisfied(T).
 
 antecedent(r1, T) :-
     time(T),
@@ -84,7 +76,6 @@ antecedent(r1, T) :-
 
 % ----------------------------- RULE-SPECIFIC CONSEQUENTS (MAPPABLE) ---------
 % Pattern: consequent(RuleId, T) :- happens(SpecificEvent, T).
-% This creates a systematic mapping from rule IDs to their specific actions
 
 consequent(r1, T) :-
     time(T),

@@ -228,15 +228,15 @@ class CorrectSleecConverter:
         if self.events:
             if self.measures:
                 sections.append("% Events")
-                sections.extend(f"event({event.name.lower()})." for event in self.events)
+                sections.extend(f"event({self._to_lower_camel_case(event.name)})." for event in self.events)
             else:
                 sections.append("% Available actions the system can perform - these are Events")
-                sections.extend(f"action({event.name.lower()}).   % actions" for event in self.events)
+                sections.extend(f"action({self._to_lower_camel_case(event.name)}).   % actions" for event in self.events)
         
         # Measures
         if self.measures:
             sections.append("\n% Measures")
-            sections.extend(f"measure({measure.name.lower()})." for measure in self.measures)
+            sections.extend(f"measure({self._to_lower_camel_case(measure.name)})." for measure in self.measures)
         
         # Time domain
         sections.append(f"\n% Time domain and priorities")
@@ -279,35 +279,126 @@ class CorrectSleecConverter:
             sections.append(f"% unless there is a within statement")
             
             # Convert action to consequent
-            action_name = rule.action.strip().lower()
+            action_name = rule.action.strip()
             if rule.action.strip().startswith("not "):
-                action_name = rule.action.strip()[4:].strip().lower()
+                action_name = rule.action.strip()[4:].strip()
                 # Handle negated actions if needed
             
             sections.append(f"consequent({rule.id.lower()},T):-")
             sections.append(f"\ttime(T),")
-            sections.append(f"\thappens({action_name},T).")
+            sections.append(f"\thappens({self._to_lower_camel_case(action_name)},T).")
             
         return '\n'.join(sections)
     
     def _convert_condition_to_antecedent(self, condition: str) -> str:
         """Convert a SLEEC condition to antecedent body format"""
-        # Convert events to happens()
-        for event in self.events:
-            condition = re.sub(rf'\b{event.name}\b', f'happens({event.name.lower()},T)', condition)
+        # Handle comparisons first (before measure conversion)
+        # Convert {measure} = value to holds_at(measure, value, T)
+        condition = re.sub(r'\{(\w+)\}\s*=\s*(\w+)', r'holds_at(\1, \2, T)', condition)
+        # Convert {measure} > value to measure_greater_than(measure, value, T) 
+        condition = re.sub(r'\{(\w+)\}\s*>\s*(\w+)', r'measure_greater_than(\1, \2, T)', condition)
+        # Convert {measure} < value to measure_less_than(measure, value, T)
+        condition = re.sub(r'\{(\w+)\}\s*<\s*(\w+)', r'measure_less_than(\1, \2, T)', condition)
         
-        # Convert measures {measure} to holds_at(measure,T)
-        condition = re.sub(r'\{(\w+)\}', r'holds_at(\1,T)', condition)
+        # Convert events to happens() - use lowerCamelCase
+        for event in self.events:
+            pattern = rf'\b{re.escape(event.name)}\b'
+            condition = re.sub(pattern, f'happens({self._to_lower_camel_case(event.name)},T)', condition, flags=re.IGNORECASE)
+        
+        # Convert remaining measures {measure} to holds_at(measure,T) - use lowerCamelCase
+        condition = re.sub(r'\{(\w+)\}', lambda m: f'holds_at({self._to_lower_camel_case(m.group(1))},T)', condition)
+        
+        # Handle negation properly - convert "not holds_at(...)" and "not happens(...)"
+        condition = re.sub(r'not\s+holds_at\(([^)]+)\)', r'not holds_at(\1)', condition)
+        condition = re.sub(r'not\s+happens\(([^)]+)\)', r'not happens(\1)', condition)
+        
+        # Remove logical grouping parentheses BEFORE converting logical operators
+        # This handles cases like: (X and Y) -> X and Y
+        # But preserves function calls like happens(event,T)
+        condition = self._remove_logical_grouping_parentheses(condition)
         
         # Handle logical operators
         condition = condition.replace(' and ', ',\n\t')
         condition = condition.replace(' or ', ' ; ')
         
-        # Clean up extra whitespace and parentheses
+        # Clean up extra whitespace
         condition = re.sub(r'\s+', ' ', condition)
         condition = condition.strip()
         
         return condition
+    
+    def _to_lower_camel_case(self, name: str) -> str:
+        """Convert name to lowerCamelCase (first letter lowercase, rest preserved)"""
+        if not name:
+            return name
+        return name[0].lower() + name[1:]
+    
+    def _remove_logical_grouping_parentheses(self, condition: str) -> str:
+        """Remove parentheses used for logical grouping while preserving function calls"""
+        # Strategy: remove parentheses that are used for logical grouping
+        # but preserve function call parentheses like happens(...) and holds_at(...)
+        
+        # Use a different approach: manually track parentheses and identify logical groupings
+        result = ""
+        i = 0
+        paren_stack = []
+        
+        while i < len(condition):
+            char = condition[i]
+            
+            if char == '(':
+                # Look ahead to see if this starts a function call or logical grouping
+                # Check if preceded by a function name
+                if i > 0:
+                    # Find the start of the preceding word
+                    j = i - 1
+                    while j >= 0 and condition[j].isspace():
+                        j -= 1
+                    word_end = j + 1
+                    while j >= 0 and (condition[j].isalnum() or condition[j] == '_'):
+                        j -= 1
+                    word_start = j + 1
+                    
+                    if word_start < word_end:
+                        preceding_word = condition[word_start:word_end]
+                        # If preceded by function names, keep the parentheses
+                        if preceding_word in ['happens', 'holds_at', 'measure_greater_than', 'measure_less_than']:
+                            result += char
+                            i += 1
+                            continue
+                
+                # Find the matching closing parenthesis
+                paren_count = 1
+                j = i + 1
+                content_start = j
+                
+                while j < len(condition) and paren_count > 0:
+                    if condition[j] == '(':
+                        paren_count += 1
+                    elif condition[j] == ')':
+                        paren_count -= 1
+                    j += 1
+                
+                if paren_count == 0:
+                    # Found matching parenthesis
+                    content = condition[content_start:j-1]
+                    
+                    # Check if content contains logical operators or negation
+                    if ' and ' in content or ' or ' in content or content.strip().startswith('not '):
+                        # This is logical grouping - remove parentheses
+                        result += content
+                        i = j
+                        continue
+                
+                # If we get here, keep the parenthesis
+                result += char
+                
+            else:
+                result += char
+            
+            i += 1
+        
+        return result
     
     def _generate_rule_satisfaction_logic(self) -> str:
         """Generate rule satisfaction logic section"""
@@ -416,19 +507,45 @@ class CorrectSleecConverter:
         if self.measures:
             for measure in self.measures:
                 if measure.type == MeasureType.BOOLEAN:
-                    # Add some sample values
-                    sections.append(f"holds_at({measure.name.lower()}, 0).")
-                    sections.append(f"holds_at({measure.name.lower()}, 1).")
-                    break  # Just show one example
+                    # Add some sample values for each boolean measure
+                    sections.append(f"holds_at({self._to_lower_camel_case(measure.name)}, 0).")
+                    sections.append(f"holds_at({self._to_lower_camel_case(measure.name)}, 1).")
+                elif measure.type == MeasureType.SCALE and measure.scale_values:
+                    # Add sample scale values
+                    sections.append(f"holds_at({self._to_lower_camel_case(measure.name)}, {measure.scale_values[0]}, 0).")
+                    sections.append(f"holds_at({self._to_lower_camel_case(measure.name)}, {measure.scale_values[0]}, 1).")
+            sections.append("")  # Add blank line after measure values
+        
+        # Add measure comparison predicates if needed
+        comparison_predicates = self._generate_measure_comparisons()
+        if comparison_predicates:
+            sections.append("% Measure comparison predicates")
+            sections.extend(comparison_predicates.split('\n'))
+            sections.append("")
         
         # Show statements
         if self.measures:
-            sections.append(f"\n% Show which events happen when")
+            sections.append(f"% Show which events happen when")
             sections.append("#show holds_at/2.")
             sections.append("#show happens/2.")
         else:
             sections.append(f"% Show which actions happen when")
             sections.append("#show happens/2.")
+        
+        return '\n'.join(sections)
+    
+    def _generate_measure_comparisons(self) -> str:
+        """Generate measure comparison predicates for numeric measures"""
+        sections = []
+        
+        # Check if we have any numeric measures that might need comparisons
+        has_numeric = any(measure.type == MeasureType.NUMERIC for measure in self.measures)
+        
+        if has_numeric:
+            sections.append("% Helper predicates for measure comparisons")
+            sections.append("measure_greater_than(M, V, T) :- holds_at(M, X, T), X > V.")
+            sections.append("measure_less_than(M, V, T) :- holds_at(M, X, T), X < V.")
+            sections.append("measure_equals(M, V, T) :- holds_at(M, V, T).")
         
         return '\n'.join(sections)
 

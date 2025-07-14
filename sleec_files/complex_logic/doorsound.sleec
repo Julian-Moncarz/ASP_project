@@ -19,7 +19,6 @@ rule_start
     // This demonstrates a complex rule that would require normalization because:
     // 1. Nested AND/OR: (OpenDoor and ({isDaytime} or {isWeekend}))
     // 2. Negated complex condition: not ({isRaining} and {isWindy})  
-    // 3. Multiple consequents: PlaySound and TurnOnLights
     
     R1 when OpenDoor and (({isDaytime} or {isWeekend}) and not ({isRaining} and {isWindy})) then PlaySound
 
