@@ -1,0 +1,29 @@
+def_start
+    // Events
+    event TemperatureChange
+    event ActivateHeating
+    event ActivateCooling
+    event SendAlert
+
+    // Measures
+    measure currentTemp: numeric
+    measure targetTemp: numeric
+    measure isOccupied: boolean
+    measure isEmergency: boolean
+
+    // Constants
+    constant minTemp = 10
+    constant maxTemp = 35
+
+def_end
+
+rule_start
+    // Activate heating when temperature is too low, unless it's not occupied
+    R1 when TemperatureChange and ({currentTemp} < {targetTemp}) then ActivateHeating unless (not {isOccupied}) then not ActivateHeating
+
+    // Activate cooling when temperature is too high, unless it's not occupied
+    R2 when TemperatureChange and ({currentTemp} > {targetTemp}) then ActivateCooling unless (not {isOccupied}) then not ActivateCooling
+
+    // Send alert for extreme temperatures, unless it's an emergency situation
+    R3 when TemperatureChange and (({currentTemp} < minTemp) or ({currentTemp} > maxTemp)) then SendAlert unless ({isEmergency}) then not SendAlert
+rule_end 

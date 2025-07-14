@@ -1,0 +1,46 @@
+def_start
+    // Events
+    event MotionDetected
+    event DoorOpen
+    event WindowOpen
+    event TurnOnLight
+    event TurnOffLight
+    event ActivateAlarm
+    event SendNotification
+    event LockDoor
+
+    // Measures
+    measure isOccupied: boolean
+    measure isDaytime: boolean
+    measure isAway: boolean
+    measure temperature: numeric
+    measure humidity: numeric
+    measure isGuest: boolean
+    measure timeOfDay: scale(morning, afternoon, evening, night)
+
+    // Constants
+    constant maxTemp = 30
+    constant minTemp = 15
+    constant maxHumidity = 80
+
+def_end
+
+rule_start
+    // Turn on lights when motion detected, unless it's daytime
+    R1 when MotionDetected then TurnOnLight unless ({isDaytime}) then not TurnOnLight
+
+    // Turn off lights when no motion, unless someone is home
+    R2 when not MotionDetected then TurnOffLight unless ({isOccupied}) then not TurnOffLight
+
+    // Activate alarm when door opens while away, unless it's a guest
+    R3 when DoorOpen and {isAway} then ActivateAlarm unless ({isGuest}) then not ActivateAlarm
+
+    // Send notification for window open at night, unless someone is home
+    R4 when WindowOpen and ({timeOfDay} = night) then SendNotification unless ({isOccupied}) then not SendNotification
+
+    // Lock door when leaving, unless someone is still home
+    R5 when isAway then LockDoor unless ({isOccupied}) then not LockDoor
+
+    // Send notification for high temperature, unless it's daytime
+    R6 when temperature > maxTemp then SendNotification unless ({isDaytime}) then not SendNotification
+rule_end 

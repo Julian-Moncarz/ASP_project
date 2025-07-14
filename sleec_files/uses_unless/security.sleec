@@ -1,0 +1,47 @@
+def_start
+    // Events
+    event UnauthorizedEntry
+    event AuthorizedEntry
+    event AlarmTrigger
+    event CallPolice
+    event SendNotification
+    event LockDown
+
+    // Measures
+    measure securityLevel: scale(low, medium, high)
+    measure isAuthorized: boolean
+    measure isEmergency: boolean
+    measure isTestMode: boolean
+    measure timeOfDay: scale(morning, afternoon, evening, night)
+    measure occupancyLevel: numeric
+
+    // Constants
+    constant maxOccupancy = 50
+    constant emergencyThreshold = 10
+
+def_end
+
+rule_start
+    // Trigger alarm for unauthorized entry, unless in test mode
+    R1 when UnauthorizedEntry then AlarmTrigger unless ({isTestMode}) then not AlarmTrigger
+
+    // Call police for high security breaches, unless it's a false alarm
+    R2 when UnauthorizedEntry and ({securityLevel} = high) then CallPolice unless ({isTestMode}) then not CallPolice
+
+    // Send notification for medium security events, unless it's night time
+    R3 when UnauthorizedEntry and ({securityLevel} = medium) then SendNotification unless ({timeOfDay} = night) then not SendNotification
+
+    // Lock down facility for multiple unauthorized entries, unless occupancy is low
+    R4 when UnauthorizedEntry and ({occupancyLevel} > emergencyThreshold) then LockDown unless ({occupancyLevel} < maxOccupancy) then not LockDown
+
+    // Allow authorized entry without alarm, unless security level is high
+    R5 when AuthorizedEntry then not AlarmTrigger unless ({securityLevel} = high) then AlarmTrigger
+rule_end
+
+concern_start
+    // Don't want to trigger alarm for authorized personnel
+    c1 when AuthorizedEntry and {isAuthorized} then AlarmTrigger
+
+    // Don't want to call police during emergency situations
+    c2 when UnauthorizedEntry and {isEmergency} then CallPolice
+concern_end 

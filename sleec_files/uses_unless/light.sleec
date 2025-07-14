@@ -1,0 +1,16 @@
+def_start
+    // Events
+    event MotionDetected
+    event TurnOnLight
+    event PlayJingle
+
+    // Measures
+    measure isOccupied: boolean
+    measure isDaytime: boolean
+
+def_end
+
+rule_start
+    // Turn on light when motion is detected, unless it's daytime
+    R1 when MotionDetected then TurnOnLight unless ({isDaytime}) then PlayJingle
+rule_end 

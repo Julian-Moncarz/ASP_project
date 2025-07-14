@@ -1,0 +1,66 @@
+def_start
+    // Events
+    event EngineStart
+    event VehicleMove
+    event EmergencyStop
+    event SendWarning
+    event DisableEngine
+    event ActivateAirbag
+    event CallEmergency
+
+    // Measures
+    measure seatBeltFastened: boolean
+    measure doorClosed: boolean
+    measure engineTemperature: numeric
+    measure fuelLevel: numeric
+    measure speed: numeric
+    measure isEmergency: boolean
+    measure isMaintenanceMode: boolean
+    measure driverAlertness: scale(low, medium, high)
+    measure weatherCondition: scale(clear, rain, snow, ice)
+    measure roadCondition: scale(good, fair, poor)
+
+    // Constants
+    constant maxEngineTemp = 120
+    constant minFuelLevel = 10
+    constant maxSpeed = 120
+    constant lowFuelThreshold = 15
+
+def_end
+
+rule_start
+    // Allow engine start only if seat belt is fastened, unless in maintenance mode
+    R1 when EngineStart then not DisableEngine unless (not {seatBeltFastened}) then DisableEngine unless ({isMaintenanceMode}) then not DisableEngine
+
+    // Allow vehicle movement only if door is closed, unless in emergency
+    R2 when VehicleMove then not EmergencyStop unless (not {doorClosed}) then EmergencyStop unless ({isEmergency}) then not EmergencyStop
+
+    // Send warning for high engine temperature, unless in maintenance mode
+    R3 when EngineStart and ({engineTemperature} > maxEngineTemp) then SendWarning unless ({isMaintenanceMode}) then not SendWarning
+
+    // Disable engine for low fuel, unless in emergency situation
+    R4 when VehicleMove and ({fuelLevel} < minFuelLevel) then DisableEngine unless ({isEmergency}) then not DisableEngine
+
+    // Send warning for high speed, unless on good road conditions
+    R5 when VehicleMove and ({speed} > maxSpeed) then SendWarning unless ({roadCondition} = good) then not SendWarning
+
+    // Activate airbag on collision, unless driver alertness is high
+    R6 when EmergencyStop then ActivateAirbag unless ({driverAlertness} = high) then not ActivateAirbag
+
+    // Call emergency services for severe conditions, unless weather is clear
+    R7 when EmergencyStop and ({weatherCondition} = ice) then CallEmergency unless ({weatherCondition} = clear) then not CallEmergency
+
+    // Send warning for low fuel, unless already below threshold
+    R8 when VehicleMove and ({fuelLevel} < lowFuelThreshold) then SendWarning unless ({fuelLevel} < minFuelLevel) then not SendWarning
+rule_end
+
+concern_start
+    // Don't want to disable engine during emergency situations
+    c1 when EmergencyStop and {isEmergency} then DisableEngine
+
+    // Don't want to activate airbag unnecessarily
+    c2 when VehicleMove and {isMaintenanceMode} then ActivateAirbag
+
+    // Don't want to call emergency for minor issues
+    c3 when SendWarning and ({weatherCondition} = clear) then CallEmergency
+concern_end 
