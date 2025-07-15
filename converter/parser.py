@@ -135,6 +135,16 @@ class SleecParser:
                 name, value = constant_match.groups()
                 line_num = self._find_line_number(line, original_lines)
                 self.constants.append(Constant(name, value.strip(), line_num))
+                continue
+            
+            # If we get here, the line wasn't recognized
+            line_num = self._find_line_number(line, original_lines)
+            raise ValueError(f"❌ Syntax Error at line {line_num}: Unrecognized definition '{line}'\n\n"
+                           f"Expected format:\n"
+                           f"  event <name>\n"
+                           f"  measure <name>: <type>\n"
+                           f"  constant <name> = <value>\n\n"
+                           f"Valid measure types: boolean, numeric, scale(value1, value2, ...)")
     
     def _parse_measure(self, name: str, type_def: str, line_number: int):
         """Parse a measure definition"""

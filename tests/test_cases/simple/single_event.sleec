@@ -1,0 +1,8 @@
+def_start
+    event TriggerEvent
+    event ActionEvent
+def_end
+
+rule_start
+    R1 when TriggerEvent then ActionEvent
+rule_end 

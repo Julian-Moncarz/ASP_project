@@ -93,6 +93,10 @@ holds_v(r2, T):-
 % Triggering event instantiation
 { happens(buttonpress, T) } :- time(T).
 
+% Action event instantiation
+{ happens(lighton, T) } :- time(T).
+{ happens(setbrightnesstomax, T) } :- time(T).
+
 % Measure instantiation
 { holds_at(isnight, T) } :- time(T).
 

@@ -1,0 +1,11 @@
+def_start
+    event StartEvent
+    event IntermediateEvent
+    event FinalEvent
+    measure condition: boolean
+def_end
+
+rule_start
+    R1 when StartEvent then IntermediateEvent
+    R2 when IntermediateEvent and {condition} then FinalEvent
+rule_end 

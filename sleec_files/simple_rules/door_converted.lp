@@ -1,13 +1,12 @@
 % =============================================================================
-        % SLEEC to Clingo Conversion (Dalal's Format)
-        % =============================================================================
-        % 
-        % This file was automatically generated from SLEEC rules.
-        % Format: Antecedent/consequent structure with rule satisfaction logic
-        % 
-        % Generated Rules:
-        % R1: EncounterHuman and ({sameLanguage} and {humanUnderstands}) -> InformHuman
-% R2: EncounterHuman -> IdentifyActivity
+% SLEEC to Clingo Conversion (Dalal's Format)
+% =============================================================================
+% 
+% This file was automatically generated from SLEEC rules.
+% Format: Antecedent/consequent structure with rule satisfaction logic
+% 
+% Generated Rules:
+% R1: DoorOpen and (not {isLocked}) -> AlarmActivate
 
 % =============================================================================
 % DOMAIN DEFINITIONS
@@ -16,13 +15,11 @@
 time(0..10).
 
 % Events
-event(encounterhuman).
-event(informhuman).
-event(identifyactivity).
+event(dooropen).
+event(alarmactivate).
 
 % Measures
-measure(samelanguage).
-measure(humanunderstands).
+measure(islocked).
 
 % =============================================================================
 % SLEEC RULE DEFINITIONS
@@ -30,15 +27,9 @@ measure(humanunderstands).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(encounterhuman, T), (holds_at(samelanguage, T), holds_at(humanunderstands, T)), time(T).
+antecedent(r1, T) :- happens(dooropen, T), not holds_at(islocked, T), time(T).
 
-consequent(r1, T) :- time(T), happens(informhuman, T).
-
-exp(r2).
-
-antecedent(r2, T) :- happens(encounterhuman, T), time(T).
-
-consequent(r2, T) :- time(T), happens(identifyactivity, T).
+consequent(r1, T) :- time(T), happens(alarmactivate, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -70,20 +61,6 @@ holds_v(r1, T):-
     not consequent(r1, T).
 
 
-% Non-vacuous satisfaction for r2
-holds_nv(r2, T):-
-    time(T),
-    antecedent(r2, T),
-    consequent(r2, T).
-
-
-% Vacuous satisfaction for r2
-holds_v(r2, T):-
-    time(T),
-    not antecedent(r2, T),
-    not consequent(r2, T).
-
-
 % Hard constraint: every rule must be satisfied at every time point
 :- exp(R), time(T), not holds(R,T).
 
@@ -92,16 +69,17 @@ holds_v(r2, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(encounterhuman, T) } :- time(T).
+{ happens(dooropen, T) } :- time(T).
+
+% Action event instantiation
+{ happens(alarmactivate, T) } :- time(T).
 
 % Measure instantiation
-{ holds_at(samelanguage, T) } :- time(T).
-{ holds_at(humanunderstands, T) } :- time(T).
+{ holds_at(islocked, T) } :- time(T).
 
 % =============================================================================
 % OUTPUT SPECIFICATION
 % =============================================================================
 
-#show holds_at/2.
-
-#show happens/2.
+#show holds_nv/2.
+#show holds_v/2.

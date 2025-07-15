@@ -5,8 +5,7 @@ SLEEC to Clingo Converters Package
 This package contains SLEEC to Clingo converters and shared parsing utilities.
 
 Available converters:
-- SleecToClingoConverter: Original converter (direct rule translation)
-- CorrectSleecConverter: Dalal's converter (antecedent/consequent structure)
+- SleecToClingoConverter: SLEEC to Clingo converter (antecedent/consequent structure)
 
 Shared utilities:
 - SleecParser: Shared SLEEC parsing functionality
@@ -14,8 +13,7 @@ Shared utilities:
 """
 
 from .parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
-from .original import SleecToClingoConverter
-from .dalal import CorrectSleecConverter
+from .sleec_converter import SleecToClingoConverter
 
 __all__ = [
     'SleecParser',
@@ -24,6 +22,5 @@ __all__ = [
     'Event', 
     'Constant',
     'Rule',
-    'SleecToClingoConverter',
-    'CorrectSleecConverter'
+    'SleecToClingoConverter'
 ] 

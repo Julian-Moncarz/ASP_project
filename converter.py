@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-Dalal SLEEC to Clingo Converter Entry Script
-===========================================
+SLEEC to Clingo Converter Entry Script
+=====================================
 
-Converts SLEEC files to Clingo format using Dalal's antecedent/consequent approach.
+Converts SLEEC files to Clingo format using an antecedent/consequent approach.
 
 Usage:
-    python dalal_converter.py <input.sleec> [output.lp]
+    python converter.py <input.sleec> [output.lp]
 
 Example:
-    python dalal_converter.py sleec_files/simple_rules/lightswitch.sleec
+    python converter.py sleec_files/simple_rules/lightswitch.sleec
 """
 
 import sys
 import os
 from pathlib import Path
 
-from converters import CorrectSleecConverter
+from converter import SleecToClingoConverter
 
 def main():
     if len(sys.argv) < 2:
@@ -41,7 +41,7 @@ def main():
     
     try:
         # Convert the file
-        converter = CorrectSleecConverter()
+        converter = SleecToClingoConverter()
         clingo_code = converter.convert_file(input_file)
         
         # Write output

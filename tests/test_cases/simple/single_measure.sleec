@@ -1,0 +1,9 @@
+def_start
+    event ActionEvent
+    measure testCondition: boolean
+def_end
+
+rule_start
+    R1 when {testCondition} then ActionEvent
+    // this should throw an error. sleec requres rules to have an triggering event.
+rule_end 

@@ -1,0 +1,9 @@
+def_start
+    event TriggerEvent
+    event ActionEvent
+    measure isReady: boolean
+def_end
+
+rule_start
+    R1 when TriggerEvent and {isReady} then ActionEvent
+rule_end 

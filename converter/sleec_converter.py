@@ -7,7 +7,7 @@ This module converts SLEEC rules into Clingo format following Dalal's approach,
 which uses antecedent/consequent structure and rule satisfaction logic.
 
 Usage:
-    converter = CorrectSleecConverter()
+    converter = SleecToClingoConverter()
     clingo_code = converter.convert_file("example.sleec")
     
     # Or convert from string
@@ -18,10 +18,10 @@ import re
 import textwrap
 from typing import List, Dict, Tuple, Optional, Set
 
-from ..parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
+from converter.parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
 
-class CorrectSleecConverter:
-    """Converts SLEEC rules to Clingo format using Dalal's approach"""
+class SleecToClingoConverter:
+    """Converts SLEEC rules to Clingo format using an antecedent/consequent approach"""
     
     def __init__(self, max_time: int = 10):
         self.max_time = max_time
@@ -87,13 +87,9 @@ class CorrectSleecConverter:
         # Time domain
         sections.append(f"time(0..{self.max_time}).")
         
-        # Events - use event() when measures are present, action() for simple cases
-        if self.measures:
-            event_lines = [f"event({event.name.lower()})." for event in self.events]
-            sections.append("% Events\n" + "\n".join(event_lines))
-        else:
-            action_lines = [f"action({event.name.lower()})." for event in self.events]
-            sections.append("% Actions\n" + "\n".join(action_lines))
+        # Events - always use event() predicates
+        event_lines = [f"event({event.name.lower()})." for event in self.events]
+        sections.append("% Events\n" + "\n".join(event_lines))
         
         # Measures
         if self.measures:
@@ -168,6 +164,13 @@ class CorrectSleecConverter:
         condition = condition.replace(' or ', '; ')
         condition = condition.replace(' not ', 'not ')
         
+        # Remove parentheses around 'not' expressions - fix for Clingo syntax
+        condition = re.sub(r'\(\s*not\s+([^)]+)\)', r'not \1', condition)
+        
+        # Remove unnecessary parentheses around comma-separated expressions
+        # This handles cases like (holds_at(x,T), holds_at(y,T)) -> holds_at(x,T), holds_at(y,T)
+        condition = self._remove_logical_grouping_parentheses(condition)
+        
         # Replace event references with happens(eventName, T)
         for event in self.events:
             event_name = event.name.lower()
@@ -189,9 +192,16 @@ class CorrectSleecConverter:
         return name[0].lower() + name[1:] if name else name
     
     def _remove_logical_grouping_parentheses(self, condition: str) -> str:
-        """Remove unnecessary logical grouping parentheses"""
-        # This is a simplified version - in practice you might want more sophisticated parsing
-        return condition.replace('(', '').replace(')', '')
+        """Remove unnecessary logical grouping parentheses around comma-separated expressions"""
+        # Direct approach: target the specific problematic pattern from SLEEC conversion
+        # Pattern: (holds_at(x, T), holds_at(y, T)) -> holds_at(x, T), holds_at(y, T)
+        
+        # Remove parentheses around patterns like: (holds_at(..., T), holds_at(..., T))
+        # This is very specific to avoid breaking other parentheses
+        pattern = r'\((holds_at\([^)]+\),\s*holds_at\([^)]+\))\)'
+        condition = re.sub(pattern, r'\1', condition)
+        
+        return condition
     
     def _generate_rule_satisfaction_logic(self) -> str:
         """Generate rule satisfaction logic with holds_nv and holds_v"""
@@ -266,13 +276,21 @@ holds_v({otherwise_id}, T):-
         """Generate action generation and constraints"""
         sections = []
         
-        # Generate triggering events instead of all events
+        # Generate triggering events (events in conditions but not in actions)
         triggering_events = self._get_triggering_events()
         if triggering_events:
             triggering_rules = []
             for event in triggering_events:
                 triggering_rules.append(f"{{ happens({event}, T) }} :- time(T).")
             sections.append("% Triggering event instantiation\n" + "\n".join(triggering_rules))
+        
+        # Generate action events (events that appear as consequences)
+        action_events = self._get_action_events()
+        if action_events:
+            action_rules = []
+            for event in action_events:
+                action_rules.append(f"{{ happens({event}, T) }} :- time(T).")
+            sections.append("% Action event instantiation\n" + "\n".join(action_rules))
         
         # Add measure instantiation if measures exist
         if self.measures:
@@ -314,6 +332,19 @@ holds_v({otherwise_id}, T):-
         
         # Triggering events are those in conditions but not in actions
         return condition_events - action_events
+    
+    def _get_action_events(self) -> Set[str]:
+        """Get events that appear in rule actions (consequence events)"""
+        action_events = set()
+        
+        for rule in self.rules:
+            # Extract events from actions
+            if rule.action:
+                action_events.add(rule.action.lower())
+            if rule.otherwise_action:
+                action_events.add(rule.otherwise_action.lower())
+        
+        return action_events
     
     def _generate_output_specification(self) -> str:
         """Generate output specification"""

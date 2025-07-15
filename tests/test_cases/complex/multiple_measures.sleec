@@ -1,0 +1,13 @@
+def_start
+    event TriggerEvent
+    event ActionEvent
+    measure boolCondition: boolean
+    measure numCondition: numeric
+    measure scaleCondition: scale(low, medium, high)
+def_end
+
+rule_start
+    R1 when TriggerEvent and {boolCondition} then ActionEvent
+    R2 when {numCondition} then ActionEvent
+    R3 when {scaleCondition} then ActionEvent
+rule_end 

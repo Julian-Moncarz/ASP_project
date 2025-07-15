@@ -1,0 +1,16 @@
+def_start
+    event Event1
+    event Event2
+    event Action1
+    event Action2
+    event Action3
+    measure state1: boolean
+    measure state2: boolean
+    measure mode: scale(active, passive, disabled)
+def_end
+
+rule_start
+    R1 when (Event1 or Event2) and {state1} then Action1
+    R2 when Event1 and ({state1} and {state2}) then Action2
+    R3 when Event2 and (not {state1}) then Action3
+rule_end 

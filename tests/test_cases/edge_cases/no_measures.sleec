@@ -1,0 +1,10 @@
+def_start
+    event Input
+    event Output1
+    event Output2
+def_end
+
+rule_start
+    R1 when Input then Output1
+    R2 when Output1 then Output2
+rule_end 

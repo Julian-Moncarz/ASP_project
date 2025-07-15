@@ -1,0 +1,20 @@
+def_start
+    // Events
+    event ButtonPress
+    event LightOn
+    event SetBrightnessToMax
+
+    // Measures
+    measure isNight: boolean
+
+    // Constants
+    constant maxBrightness = 10
+def_end
+
+rule_start
+    // When the button is pressed, turn the light on
+    R1 when ButtonPress then LightOn
+    
+    // If the light is on and it is night, set the brightness to the maximum
+    R2 when LightOn and {isNight} then SetBrightnessToMax
+rule_end 

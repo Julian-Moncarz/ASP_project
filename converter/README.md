@@ -1,7 +1,7 @@
-# Dalal's SLEEC to Clingo Converter
+# SLEEC to Clingo Converter
 
 * Input: sleec file
-* Output: Clingo code using Dalal's antecedent/consequent approach
+* Output: Clingo code using an antecedent/consequent approach
 
 ## Usage
 
@@ -18,9 +18,9 @@ python3 convert.py ../sleec_files/simple_rules/lightswitch.sleec
 ### Use the Converter Directly
 
 ```python
-from sleec_to_clingo_converter import CorrectSleecConverter
+from converter.sleec_converter import SleecToClingoConverter
 
-converter = CorrectSleecConverter(max_time=10)
+converter = SleecToClingoConverter(max_time=10)
 clingo_code = converter.convert_file("example.sleec")
 print(clingo_code)
 ```

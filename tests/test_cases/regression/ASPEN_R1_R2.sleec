@@ -1,0 +1,23 @@
+def_start
+
+    // Events - only those needed for R1 and R2
+    event EncounterHuman
+    event InformHuman
+    event IdentifyActivity
+
+    // Measures - only those needed for R1 and R2
+    measure sameLanguage: boolean
+    measure humanUnderstands: boolean
+
+def_end
+
+
+rule_start
+
+    R1 when EncounterHuman and ({sameLanguage} and {humanUnderstands}) 
+        then InformHuman
+
+    R2 when EncounterHuman then
+        IdentifyActivity
+
+rule_end 

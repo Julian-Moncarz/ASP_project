@@ -1,0 +1,12 @@
+def_start
+    event TriggerEvent
+    event ActionEvent
+    measure condition1: boolean
+    measure condition2: boolean
+    measure condition3: boolean
+def_end
+
+rule_start
+    R1 when TriggerEvent and ({condition1} and {condition2}) then ActionEvent
+    R2 when TriggerEvent and (not {condition3}) then ActionEvent
+rule_end 

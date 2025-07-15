@@ -1,0 +1,7 @@
+def_start
+    event TestEvent
+    measure testMeasure: boolean
+def_end
+
+rule_start
+rule_end 
