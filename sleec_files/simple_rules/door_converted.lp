@@ -12,7 +12,7 @@
 % DOMAIN DEFINITIONS
 % =============================================================================
 
-time(0..10).
+time(0..2).
 
 % Events
 event(dooropen).
@@ -81,5 +81,6 @@ holds_v(r1, T):-
 % OUTPUT SPECIFICATION
 % =============================================================================
 
-#show holds_nv/2.
-#show holds_v/2.
+#show holds_at/2.
+
+#show happens/2.
