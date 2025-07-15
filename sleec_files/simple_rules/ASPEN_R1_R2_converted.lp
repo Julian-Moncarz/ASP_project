@@ -6,22 +6,23 @@
         % Format: Antecedent/consequent structure with rule satisfaction logic
         % 
         % Generated Rules:
-        % R1: ButtonPress -> LightOn
-% R2: LightOn and {isNight} -> SetBrightnessToMax
+        % R1: EncounterHuman and ({sameLanguage} and {humanUnderstands}) -> InformHuman
+% R2: EncounterHuman -> IdentifyActivity
 
 % =============================================================================
 % DOMAIN DEFINITIONS
 % =============================================================================
 
-time(0..10).
+time(0..2).
 
 % Events
-event(buttonpress).
-event(lighton).
-event(setbrightnesstomax).
+event(encounterhuman).
+event(informhuman).
+event(identifyactivity).
 
 % Measures
-measure(isnight).
+measure(samelanguage).
+measure(humanunderstands).
 
 % =============================================================================
 % SLEEC RULE DEFINITIONS
@@ -29,15 +30,15 @@ measure(isnight).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(buttonpress, T), time(T).
+antecedent(r1, T) :- happens(encounterhuman, T), holds_at(samelanguage, T), holds_at(humanunderstands, T), time(T).
 
-consequent(r1, T) :- time(T), happens(lighton, T).
+consequent(r1, T) :- time(T), happens(informhuman, T).
 
 exp(r2).
 
-antecedent(r2, T) :- happens(lighton, T), holds_at(isnight, T), time(T).
+antecedent(r2, T) :- happens(encounterhuman, T), time(T).
 
-consequent(r2, T) :- time(T), happens(setbrightnesstomax, T).
+consequent(r2, T) :- time(T), happens(identifyactivity, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -91,14 +92,15 @@ holds_v(r2, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(buttonpress, T) } :- time(T).
+{ happens(encounterhuman, T) } :- time(T).
 
 % Action event instantiation
-{ happens(setbrightnesstomax, T) } :- time(T).
-{ happens(lighton, T) } :- time(T).
+{ happens(informhuman, T) } :- time(T).
+{ happens(identifyactivity, T) } :- time(T).
 
 % Measure instantiation
-{ holds_at(isnight, T) } :- time(T).
+{ holds_at(samelanguage, T) } :- time(T).
+{ holds_at(humanunderstands, T) } :- time(T).
 
 % =============================================================================
 % OUTPUT SPECIFICATION
