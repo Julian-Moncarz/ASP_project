@@ -1,3 +1,67 @@
+# SLEEC to Clingo Converter
+
+Input sleec file, output runnable clingo code!
+
+## Usage
+
+```bash
+python3 convert.py <sleec_file>
+```
+
+eg:
+
+```bash
+python3 convert.py ../sleec_files/simple_rules/lightswitch.sleec
+```
+
+### Use the Converter Directly
+
+```python
+from converter.sleec_converter import SleecToClingoConverter
+
+converter = SleecToClingoConverter(max_time=10)
+clingo_code = converter.convert_file("example.sleec")
+print(clingo_code)
+```
+
+## Output Format
+
+The converter generates Clingo code with this structure:
+
+1. **Header** - File description and rule list
+2. **Domain Definitions** - Time, events, measures, and actions
+3. **SLEEC Rule Definitions** - Antecedent/consequent structure for each rule
+4. **Rule Satisfaction Logic** - holds_nv (non-vacuous) and holds_v (vacuous) satisfaction
+5. **Action Generation and Constraints** - Choice rules and measure instantiation
+6. **Output Specification** - What to show in answer sets
+
+## Example
+
+**Input (lightswitch.sleec):**
+
+```sleec
+def_start
+    // Events
+    event ButtonPress
+    event LightOn
+    event SetBrightnessToMax
+
+    // Measures
+    measure isNight: boolean
+def_end
+
+rule_start
+    // When the button is pressed, turn the light on
+    R1 when ButtonPress then LightOn
+  
+    // If the light is on and it is night, set the brightness to the maximum
+    R2 when LightOn and {isNight} then SetBrightnessToMax
+rule_end 
+```
+
+**Generated Clingo output:**
+
+```prolog
 % =============================================================================
         % SLEEC to Clingo Conversion (Dalal's Format)
         % =============================================================================
@@ -6,23 +70,22 @@
         % Format: Antecedent/consequent structure with rule satisfaction logic
         % 
         % Generated Rules:
-        % R1: EncounterHuman and ({sameLanguage} and {humanUnderstands}) -> InformHuman
-% R2: EncounterHuman -> IdentifyActivity
+        % R1: ButtonPress -> LightOn
+% R2: LightOn and {isNight} -> SetBrightnessToMax
 
 % =============================================================================
 % DOMAIN DEFINITIONS
 % =============================================================================
 
-time(0..2).
+time(0..10).
 
 % Events
-event(encounterhuman).
-event(informhuman).
-event(identifyactivity).
+event(buttonpress).
+event(lighton).
+event(setbrightnesstomax).
 
 % Measures
-measure(samelanguage).
-measure(humanunderstands).
+measure(isnight).
 
 % =============================================================================
 % SLEEC RULE DEFINITIONS
@@ -30,15 +93,15 @@ measure(humanunderstands).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(encounterhuman, T), holds_at(samelanguage, T), holds_at(humanunderstands, T), time(T).
+antecedent(r1, T) :- happens(buttonpress, T), time(T).
 
-consequent(r1, T) :- time(T), happens(informhuman, T).
+consequent(r1, T) :- time(T), happens(lighton, T).
 
 exp(r2).
 
-antecedent(r2, T) :- happens(encounterhuman, T), time(T).
+antecedent(r2, T) :- happens(lighton, T), holds_at(isnight, T), time(T).
 
-consequent(r2, T) :- time(T), happens(identifyactivity, T).
+consequent(r2, T) :- time(T), happens(setbrightnesstomax, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -92,15 +155,14 @@ holds_v(r2, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(encounterhuman, T) } :- time(T).
+{ happens(buttonpress, T) } :- time(T).
 
 % Action event instantiation
-{ happens(informhuman, T) } :- time(T).
-{ happens(identifyactivity, T) } :- time(T).
+{ happens(setbrightnesstomax, T) } :- time(T).
+{ happens(lighton, T) } :- time(T).
 
 % Measure instantiation
-{ holds_at(samelanguage, T) } :- time(T).
-{ holds_at(humanunderstands, T) } :- time(T).
+{ holds_at(isnight, T) } :- time(T).
 
 % =============================================================================
 % OUTPUT SPECIFICATION
@@ -109,3 +171,4 @@ holds_v(r2, T):-
 #show holds_at/2.
 
 #show happens/2.
+```
