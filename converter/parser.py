@@ -44,12 +44,18 @@ class Constant:
     line_number: int
 
 @dataclass
+class UnlessClause:
+    condition: str
+    action: str
+
+@dataclass
 class Rule:
     id: str
     condition: str
     action: str
     line_number: int
     otherwise_action: Optional[str] = None
+    unless_clauses: Optional[List[UnlessClause]] = None
 
 class SleecParser:
     """Shared SLEEC parser for extracting definitions and rules"""
@@ -170,20 +176,53 @@ class SleecParser:
         matches = re.findall(rule_pattern, rules_content, re.DOTALL)
         
         for rule_id, condition, action_part in matches:
-            # Handle otherwise clause
-            otherwise_match = re.search(r'(.*?)\s+otherwise\s+(.*)', action_part, re.DOTALL)
-            if otherwise_match:
-                action = otherwise_match.group(1).strip()
-                otherwise_action = otherwise_match.group(2).strip()
+            # Parse unless clauses first (they take precedence over otherwise)
+            unless_clauses = []
+            remaining_action = action_part.strip()
+            
+            # Extract all unless clauses using regex
+            unless_pattern = r'\s+unless\s+\(([^)]+)\)\s+then\s+(.*?)(?=\s+unless|$)'
+            unless_matches = re.findall(unless_pattern, remaining_action)
+            
+            if unless_matches:
+                # Extract primary action (everything before first unless)
+                primary_action_match = re.match(r'(.*?)\s+unless', remaining_action)
+                if primary_action_match:
+                    action = primary_action_match.group(1).strip()
+                else:
+                    action = remaining_action.strip()
+                
+                # Process unless clauses
+                for unless_condition, unless_action in unless_matches:
+                    unless_clauses.append(UnlessClause(
+                        condition=unless_condition.strip(),
+                        action=unless_action.strip()
+                    ))
+                
+                otherwise_action = None  # unless takes precedence over otherwise
+                
             else:
-                action = action_part.strip()
-                otherwise_action = None
+                # Handle otherwise clause (only if no unless clauses)
+                otherwise_match = re.search(r'(.*?)\s+otherwise\s+(.*)', action_part, re.DOTALL)
+                if otherwise_match:
+                    action = otherwise_match.group(1).strip()
+                    otherwise_action = otherwise_match.group(2).strip()
+                else:
+                    action = action_part.strip()
+                    otherwise_action = None
             
             # Find line number for this rule
             rule_text = f"{rule_id} when {condition} then {action}"
             line_num = self._find_line_number(rule_text, original_lines)
             
-            self.rules.append(Rule(rule_id, condition.strip(), action, line_num, otherwise_action))
+            self.rules.append(Rule(
+                rule_id, 
+                condition.strip(), 
+                action, 
+                line_num, 
+                otherwise_action,
+                unless_clauses if unless_clauses else None
+            ))
 
     @staticmethod
     def validate_definitions(events: List[Event], measures: List[Measure], rules: List[Rule]) -> None:
@@ -195,8 +234,15 @@ class SleecParser:
         defined_measures = {measure.name for measure in measures}
         
         for rule in rules:
-            # Check events in actions
-            for action in [rule.action, rule.otherwise_action]:
+            # Check events in actions (including unless actions)
+            actions_to_check = [rule.action, rule.otherwise_action]
+            
+            # Add unless clause actions
+            if rule.unless_clauses:
+                for unless_clause in rule.unless_clauses:
+                    actions_to_check.append(unless_clause.action)
+            
+            for action in actions_to_check:
                 if action:
                     action_clean = action.strip()
                     if action_clean.startswith("not "):
@@ -204,11 +250,19 @@ class SleecParser:
                     if action_clean not in defined_events:
                         errors.append(f"Error: Undefined event '{action_clean}' referenced in rule {rule.id} at line {rule.line_number}")
             
-            # Check measures in conditions
-            measure_matches = re.findall(r'\{(\w+)\}', rule.condition)
-            for measure_name in measure_matches:
-                if measure_name not in defined_measures:
-                    errors.append(f"Error: Undefined measure '{measure_name}' referenced in rule {rule.id} at line {rule.line_number}")
+            # Check measures in conditions (including unless conditions)
+            conditions_to_check = [rule.condition]
+            
+            # Add unless clause conditions
+            if rule.unless_clauses:
+                for unless_clause in rule.unless_clauses:
+                    conditions_to_check.append(unless_clause.condition)
+            
+            for condition in conditions_to_check:
+                measure_matches = re.findall(r'\{(\w+)\}', condition)
+                for measure_name in measure_matches:
+                    if measure_name not in defined_measures:
+                        errors.append(f"Error: Undefined measure '{measure_name}' referenced in rule {rule.id} at line {rule.line_number}")
         
         if errors:
             error_msg = "❌ Validation failed:\n" + "\n".join(errors) + "\n\nPlease add these definitions to your SLEEC file:"
@@ -218,7 +272,15 @@ class SleecParser:
             missing_measures = set()
             
             for rule in rules:
-                for action in [rule.action, rule.otherwise_action]:
+                # Check main actions and otherwise actions
+                actions_to_check = [rule.action, rule.otherwise_action]
+                
+                # Add unless clause actions
+                if rule.unless_clauses:
+                    for unless_clause in rule.unless_clauses:
+                        actions_to_check.append(unless_clause.action)
+                
+                for action in actions_to_check:
                     if action:
                         action_clean = action.strip()
                         if action_clean.startswith("not "):
@@ -226,10 +288,18 @@ class SleecParser:
                         if action_clean not in defined_events:
                             missing_events.add(action_clean)
                 
-                measure_matches = re.findall(r'\{(\w+)\}', rule.condition)
-                for measure_name in measure_matches:
-                    if measure_name not in defined_measures:
-                        missing_measures.add(measure_name)
+                # Check main condition and unless conditions
+                conditions_to_check = [rule.condition]
+                
+                if rule.unless_clauses:
+                    for unless_clause in rule.unless_clauses:
+                        conditions_to_check.append(unless_clause.condition)
+                
+                for condition in conditions_to_check:
+                    measure_matches = re.findall(r'\{(\w+)\}', condition)
+                    for measure_name in measure_matches:
+                        if measure_name not in defined_measures:
+                            missing_measures.add(measure_name)
             
             if missing_events:
                 error_msg += "\n\nEvents:"

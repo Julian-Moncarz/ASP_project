@@ -7,6 +7,7 @@ Comprehensive tests covering:
 2. Integration tests for complete conversion pipeline
 3. Behavioral tests for rule compliance and logical correctness
 4. Regression tests for known working cases
+5. Unless statement support tests
 """
 
 import pytest
@@ -453,6 +454,293 @@ rule_end
         assert "{ holds_at(boolmeasure, T) }" in result
         assert "{ holds_at(nummeasure, V, T) : V = 0..10 }" in result
         assert "holds_at(scalemeasure, low, T)" in result
+
+    # ========================================================================
+    # UNLESS STATEMENT TESTS - TDD Implementation
+    # ========================================================================
+
+    def test_parse_simple_unless_statement(self):
+        """Test parsing of simple unless statement"""
+        sleec_content = """
+def_start
+    event MotionDetected
+    event TurnOnLight
+    event PlayJingle
+    measure isDaytime: boolean
+def_end
+
+rule_start
+    R1 when MotionDetected then TurnOnLight unless ({isDaytime}) then PlayJingle
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Should generate two separate rules with proper naming
+        # Primary rule: R1_primary
+        assert "exp(r1_primary)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T)." in result
+        
+        # Exception rule: R1_unless1  
+        assert "exp(r1_unless1)." in result
+        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T), holds_at(isdaytime, T), time(T)." in result
+        assert "consequent(r1_unless1, T) :- time(T), happens(playjingle, T)." in result
+
+    def test_parse_unless_with_negated_action(self):
+        """Test parsing unless with 'not' action"""
+        sleec_content = """
+def_start
+    event MotionDetected
+    event TurnOnLight
+    measure isDaytime: boolean
+def_end
+
+rule_start
+    R1 when MotionDetected then TurnOnLight unless ({isDaytime}) then not TurnOnLight
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Primary rule: R1_primary
+        assert "exp(r1_primary)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T)." in result
+        
+        # Exception rule should NOT exist for negated action
+        assert "r1_unless1" not in result
+        # Should not have any consequent that generates TurnOnLight when isDaytime is true
+        lines = result.split('\n')
+        invalid_consequent = any(
+            "consequent(" in line and "happens(turnonlight, T)" in line and "holds_at(isdaytime, T)" in line 
+            for line in lines
+        )
+        assert not invalid_consequent, "Should not generate consequent for 'not' unless clause"
+
+    def test_parse_multiple_unless_statements(self):
+        """Test parsing multiple unless statements (cascading priority)"""
+        sleec_content = """
+def_start
+    event ButtonPress
+    event TurnOnLight
+    event PlaySound
+    event ShowMessage
+    measure powerSave: boolean
+    measure emergencyMode: boolean
+def_end
+
+rule_start
+    R1 when ButtonPress then TurnOnLight unless ({powerSave}) then PlaySound unless ({emergencyMode}) then ShowMessage
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Primary rule: ButtonPress AND NOT powerSave AND NOT emergencyMode -> TurnOnLight
+        assert "exp(r1_primary)." in result
+        assert "antecedent(r1_primary, T) :- happens(buttonpress, T), not holds_at(powersave, T), not holds_at(emergencymode, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T)." in result
+        
+        # First unless: ButtonPress AND powerSave AND NOT emergencyMode -> PlaySound
+        assert "exp(r1_unless1)." in result
+        assert "antecedent(r1_unless1, T) :- happens(buttonpress, T), holds_at(powersave, T), not holds_at(emergencymode, T), time(T)." in result
+        assert "consequent(r1_unless1, T) :- time(T), happens(playsound, T)." in result
+        
+        # Second unless (highest priority): ButtonPress AND emergencyMode -> ShowMessage
+        assert "exp(r1_unless2)." in result
+        assert "antecedent(r1_unless2, T) :- happens(buttonpress, T), holds_at(emergencymode, T), time(T)." in result
+        assert "consequent(r1_unless2, T) :- time(T), happens(showmessage, T)." in result
+
+    def test_unless_with_complex_conditions(self):
+        """Test unless with complex boolean conditions"""
+        sleec_content = """
+def_start
+    event DoorOpen
+    event SoundAlarm
+    event LogEntry
+    measure isNight: boolean
+    measure guestMode: boolean
+def_end
+
+rule_start
+    R1 when (DoorOpen and {isNight}) then SoundAlarm unless ({guestMode}) then LogEntry
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Primary rule: DoorOpen AND isNight AND NOT guestMode -> SoundAlarm
+        assert "exp(r1_primary)." in result
+        assert "antecedent(r1_primary, T) :- happens(dooropen, T), holds_at(isnight, T), not holds_at(guestmode, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(soundalarm, T)." in result
+        
+        # Exception rule: DoorOpen AND isNight AND guestMode -> LogEntry
+        assert "exp(r1_unless1)." in result
+        assert "antecedent(r1_unless1, T) :- happens(dooropen, T), holds_at(isnight, T), holds_at(guestmode, T), time(T)." in result
+        assert "consequent(r1_unless1, T) :- time(T), happens(logentry, T)." in result
+
+    def test_unless_conversion_simple(self):
+        """Test conversion of simple unless to Clingo rules"""
+        sleec_content = """
+def_start
+    event MotionDetected
+    event TurnOnLight
+    event PlayJingle
+    measure isDaytime: boolean
+def_end
+
+rule_start
+    R1 when MotionDetected then TurnOnLight unless ({isDaytime}) then PlayJingle
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Check domain definitions are present
+        assert "event(motiondetected)" in result
+        assert "event(turnonlight)" in result
+        assert "event(playjingle)" in result
+        assert "measure(isdaytime)" in result
+        
+        # Check rule structure exists
+        assert "exp(r1_primary)" in result
+        assert "exp(r1_unless1)" in result
+        assert "antecedent(r1_primary, T)" in result
+        assert "antecedent(r1_unless1, T)" in result
+        assert "consequent(r1_primary, T)" in result
+        assert "consequent(r1_unless1, T)" in result
+
+    def test_unless_conversion_negated_action(self):
+        """Test conversion of unless with negated action (no action generated)"""
+        sleec_content = """
+def_start
+    event MotionDetected
+    event TurnOnLight
+    measure isDaytime: boolean
+def_end
+
+rule_start
+    R1 when MotionDetected then TurnOnLight unless ({isDaytime}) then not TurnOnLight
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Primary rule should exist
+        assert "exp(r1_primary)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T)." in result
+        
+        # Should NOT have r1_unless1 rule for negated action
+        assert "exp(r1_unless1)" not in result
+
+    def test_unless_conversion_cascading_priority(self):
+        """Test conversion of multiple unless statements with cascading priority"""
+        sleec_content = """
+def_start
+    event ButtonPress
+    event TurnOnLight
+    event PlaySound  
+    event ShowMessage
+    measure powerSave: boolean
+    measure emergencyMode: boolean
+def_end
+
+rule_start
+    R1 when ButtonPress then TurnOnLight unless ({powerSave}) then PlaySound unless ({emergencyMode}) then ShowMessage
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Check all three cascading rules exist with proper priority logic
+        expected_rules = [
+            "exp(r1_primary).",
+            "antecedent(r1_primary, T) :- happens(buttonpress, T), not holds_at(powersave, T), not holds_at(emergencymode, T), time(T).",
+            "consequent(r1_primary, T) :- time(T), happens(turnonlight, T).",
+            "exp(r1_unless1).",
+            "antecedent(r1_unless1, T) :- happens(buttonpress, T), holds_at(powersave, T), not holds_at(emergencymode, T), time(T).",
+            "consequent(r1_unless1, T) :- time(T), happens(playsound, T).",
+            "exp(r1_unless2).",
+            "antecedent(r1_unless2, T) :- happens(buttonpress, T), holds_at(emergencymode, T), time(T).",
+            "consequent(r1_unless2, T) :- time(T), happens(showmessage, T)."
+        ]
+        
+        for expected_rule in expected_rules:
+            assert expected_rule in result, f"Missing expected rule: {expected_rule}"
+
+    def test_unless_integration_mixed_rules(self):
+        """Test integration with mixed rules (some with unless, some without)"""
+        sleec_content = """
+def_start
+    event MotionDetected
+    event DoorOpen
+    event TurnOnLight
+    event SoundAlarm
+    event PlayJingle
+    measure isDaytime: boolean
+    measure isLocked: boolean
+def_end
+
+rule_start
+    R1 when MotionDetected then TurnOnLight unless ({isDaytime}) then PlayJingle
+    R2 when DoorOpen and {isLocked} then SoundAlarm
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Unless rule (R1) - should generate two rules
+        assert "exp(r1_primary)." in result
+        assert "exp(r1_unless1)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T), holds_at(isdaytime, T), time(T)." in result
+        
+        # Regular rule (R2) - should generate one rule
+        assert "exp(r2)." in result
+        assert "antecedent(r2, T) :- happens(dooropen, T), holds_at(islocked, T), time(T)." in result
+        assert "consequent(r2, T) :- time(T), happens(soundalarm, T)." in result
+
+    def test_unless_regression_light_system(self):
+        """Test unless with real-world light system example"""
+        sleec_content = """
+def_start
+    event MotionDetected
+    event TurnOnLight
+    event PlayJingle
+    measure isOccupied: boolean
+    measure isDaytime: boolean
+def_end
+
+rule_start
+    R1 when MotionDetected then TurnOnLight unless ({isDaytime}) then PlayJingle
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Based on sleec_files/uses_unless/light.sleec
+        assert "exp(r1_primary)." in result
+        assert "exp(r1_unless1)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T), holds_at(isdaytime, T), time(T)." in result
+
+    def test_unless_error_handling_invalid_syntax(self):
+        """Test error handling for invalid unless syntax"""
+        invalid_sleec = """
+def_start
+    event TestEvent
+def_end
+
+rule_start
+    R1 when TestEvent then Action unless invalid syntax here
+rule_end
+"""
+        
+        # Should raise appropriate parsing error
+        with pytest.raises(Exception):  # Will be more specific once implemented
+            result = self.converter.convert_sleec_string(invalid_sleec)
 
 
 # ========================================================================

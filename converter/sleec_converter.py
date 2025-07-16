@@ -112,41 +112,104 @@ class SleecToClingoConverter:
         for rule in self.rules:
             rule_id = rule.id.lower()
             
-            # Rule identifier
-            rule_definitions.append(f"exp({rule_id}).")
-            
-            # Antecedent logic
-            antecedent_condition = self._convert_condition_to_antecedent(rule.condition)
-            rule_definitions.append(f"antecedent({rule_id}, T) :- {antecedent_condition}.")
-            
-            # Consequent logic
-            if self.measures:
-                consequent_action = f"happens({rule.action.lower()}, T)"
+            if rule.unless_clauses:
+                # Handle unless clauses with cascading priority
+                self._generate_unless_rules(rule, rule_definitions)
             else:
-                consequent_action = f"happens({rule.action.lower()}, T)"
-            rule_definitions.append(f"consequent({rule_id}, T) :- time(T), {consequent_action}.")
-            
-            # Otherwise clause if present
-            if rule.otherwise_action:
-                otherwise_id = f"{rule_id}_otherwise"
-                rule_definitions.append(f"exp({otherwise_id}).")
-                
-                # Negated antecedent
-                negated_antecedent = self._negate_antecedent(rule.condition)
-                rule_definitions.append(f"antecedent({otherwise_id}, T) :- {negated_antecedent}.")
-                
-                # Otherwise consequent
-                if self.measures:
-                    otherwise_consequent = f"happens({rule.otherwise_action.lower()}, T)"
-                else:
-                    otherwise_consequent = f"happens({rule.otherwise_action.lower()}, T)"
-                rule_definitions.append(f"consequent({otherwise_id}, T) :- time(T), {otherwise_consequent}.")
+                # Handle regular rules (with possible otherwise clause)
+                self._generate_regular_rule(rule, rule_definitions)
         
         return textwrap.dedent("""
         % =============================================================================
         % SLEEC RULE DEFINITIONS
         % =============================================================================
         """).strip() + "\n\n" + "\n\n".join(rule_definitions)
+    
+    def _generate_unless_rules(self, rule, rule_definitions):
+        """Generate multiple rules for unless statements with cascading priority"""
+        rule_id = rule.id.lower()
+        base_condition = rule.condition
+        
+        # Build cascading conditions for each unless clause
+        unless_conditions = []
+        for unless_clause in rule.unless_clauses:
+            unless_conditions.append(unless_clause.condition)
+        
+        # Primary rule: original condition AND NOT all unless conditions
+        primary_id = f"{rule_id}_primary"
+        rule_definitions.append(f"exp({primary_id}).")
+        
+        # Build primary antecedent: base condition AND NOT unless1 AND NOT unless2 ...
+        primary_antecedent = self._convert_condition_to_antecedent(base_condition)
+        for unless_condition in unless_conditions:
+            unless_antecedent = self._convert_condition_to_antecedent(unless_condition)
+            # Remove "time(T)" from unless condition to avoid duplication
+            unless_antecedent_clean = unless_antecedent.replace(", time(T)", "")
+            primary_antecedent = primary_antecedent.replace(", time(T)", f", not {unless_antecedent_clean}, time(T)")
+        
+        rule_definitions.append(f"antecedent({primary_id}, T) :- {primary_antecedent}.")
+        
+        # Primary action (skip if it's a negated action)
+        if not rule.action.strip().startswith("not "):
+            consequent_action = f"happens({rule.action.lower()}, T)"
+            rule_definitions.append(f"consequent({primary_id}, T) :- time(T), {consequent_action}.")
+        
+        # Unless rules: each unless clause gets higher priority
+        for i, unless_clause in enumerate(rule.unless_clauses, 1):
+            # Skip unless rule entirely if it's a negated action
+            if unless_clause.action.strip().startswith("not "):
+                continue
+                
+            unless_id = f"{rule_id}_unless{i}"
+            rule_definitions.append(f"exp({unless_id}).")
+            
+            # Build unless antecedent: base condition AND this unless condition AND NOT higher priority unless conditions
+            unless_antecedent = self._convert_condition_to_antecedent(base_condition)
+            
+            # Add this unless condition
+            this_unless_condition = self._convert_condition_to_antecedent(unless_clause.condition)
+            this_unless_clean = this_unless_condition.replace(", time(T)", "")
+            unless_antecedent = unless_antecedent.replace(", time(T)", f", {this_unless_clean}, time(T)")
+            
+            # Add negation of higher priority unless conditions (later in the list)
+            for j in range(i, len(rule.unless_clauses)):
+                higher_unless_condition = self._convert_condition_to_antecedent(rule.unless_clauses[j].condition)
+                higher_unless_clean = higher_unless_condition.replace(", time(T)", "")
+                unless_antecedent = unless_antecedent.replace(", time(T)", f", not {higher_unless_clean}, time(T)")
+            
+            rule_definitions.append(f"antecedent({unless_id}, T) :- {unless_antecedent}.")
+            
+            # Unless action
+            unless_consequent_action = f"happens({unless_clause.action.lower()}, T)"
+            rule_definitions.append(f"consequent({unless_id}, T) :- time(T), {unless_consequent_action}.")
+    
+    def _generate_regular_rule(self, rule, rule_definitions):
+        """Generate regular rule (possibly with otherwise clause)"""
+        rule_id = rule.id.lower()
+        
+        # Rule identifier
+        rule_definitions.append(f"exp({rule_id}).")
+        
+        # Antecedent logic
+        antecedent_condition = self._convert_condition_to_antecedent(rule.condition)
+        rule_definitions.append(f"antecedent({rule_id}, T) :- {antecedent_condition}.")
+        
+        # Consequent logic
+        consequent_action = f"happens({rule.action.lower()}, T)"
+        rule_definitions.append(f"consequent({rule_id}, T) :- time(T), {consequent_action}.")
+        
+        # Otherwise clause if present
+        if rule.otherwise_action:
+            otherwise_id = f"{rule_id}_otherwise"
+            rule_definitions.append(f"exp({otherwise_id}).")
+            
+            # Negated antecedent
+            negated_antecedent = self._negate_antecedent(rule.condition)
+            rule_definitions.append(f"antecedent({otherwise_id}, T) :- {negated_antecedent}.")
+            
+            # Otherwise consequent
+            otherwise_consequent = f"happens({rule.otherwise_action.lower()}, T)"
+            rule_definitions.append(f"consequent({otherwise_id}, T) :- time(T), {otherwise_consequent}.")
     
     def _convert_condition_to_antecedent(self, condition: str) -> str:
         """Convert a SLEEC condition to antecedent format"""
@@ -193,13 +256,26 @@ class SleecToClingoConverter:
     
     def _remove_logical_grouping_parentheses(self, condition: str) -> str:
         """Remove unnecessary logical grouping parentheses around comma-separated expressions"""
-        # Direct approach: target the specific problematic pattern from SLEEC conversion
-        # Pattern: (holds_at(x, T), holds_at(y, T)) -> holds_at(x, T), holds_at(y, T)
+        # Handle multiple patterns:
+        # 1. Remove outer parentheses around complete expressions like (a, b)
+        # 2. Remove inner parentheses around sub-expressions like a, (b, c), d
         
-        # Remove parentheses around patterns like: (holds_at(..., T), holds_at(..., T))
-        # This is very specific to avoid breaking other parentheses
+        # Pattern 1: Remove outer parentheses if entire expression is wrapped
+        if condition.startswith('(') and condition.endswith(')') and ';' not in condition:
+            # Check if removing outer parentheses leaves a valid comma-separated expression
+            inner = condition[1:-1]
+            if ',' in inner and not inner.startswith('('):
+                condition = inner
+        
+        # Pattern 2: Remove parentheses around specific sub-patterns
+        # (holds_at(...), holds_at(...)) -> holds_at(...), holds_at(...)
         pattern = r'\((holds_at\([^)]+\),\s*holds_at\([^)]+\))\)'
         condition = re.sub(pattern, r'\1', condition)
+        
+        # Pattern 3: Mixed patterns like a, (b, c), d
+        # Look for patterns like ", (expr, expr)," and remove the parentheses
+        pattern = r',\s*\(([^()]+,\s*[^()]+)\)\s*,'
+        condition = re.sub(pattern, r', \1,', condition)
         
         return condition
     
@@ -228,38 +304,12 @@ class SleecToClingoConverter:
         for rule in self.rules:
             rule_id = rule.id.lower()
             
-            # Non-vacuous satisfaction: antecedent true AND consequent met
-            satisfaction_logic.append(f"""
-% Non-vacuous satisfaction for {rule_id}
-holds_nv({rule_id}, T):-
-    time(T),
-    antecedent({rule_id}, T),
-    consequent({rule_id}, T).""")
-            
-            # Vacuous satisfaction: antecedent not true AND consequent does not happen
-            satisfaction_logic.append(f"""
-% Vacuous satisfaction for {rule_id}
-holds_v({rule_id}, T):-
-    time(T),
-    not antecedent({rule_id}, T),
-    not consequent({rule_id}, T).""")
-            
-            # Handle otherwise clause if present
-            if rule.otherwise_action:
-                otherwise_id = f"{rule_id}_otherwise"
-                satisfaction_logic.append(f"""
-% Non-vacuous satisfaction for {otherwise_id}
-holds_nv({otherwise_id}, T):-
-    time(T),
-    antecedent({otherwise_id}, T),
-    consequent({otherwise_id}, T).""")
-                
-                satisfaction_logic.append(f"""
-% Vacuous satisfaction for {otherwise_id}
-holds_v({otherwise_id}, T):-
-    time(T),
-    not antecedent({otherwise_id}, T),
-    not consequent({otherwise_id}, T).""")
+            if rule.unless_clauses:
+                # Handle unless rules - generate satisfaction logic for all generated rules
+                self._generate_unless_satisfaction_logic(rule, satisfaction_logic)
+            else:
+                # Handle regular rules
+                self._generate_regular_satisfaction_logic(rule, satisfaction_logic)
         
         # Hard constraint: every rule must be satisfied at every time point
         satisfaction_logic.append("""
@@ -271,6 +321,84 @@ holds_v({otherwise_id}, T):-
         % RULE SATISFACTION LOGIC
         % =============================================================================
         """).strip() + "\n\n" + "\n\n".join(satisfaction_logic)
+    
+    def _generate_unless_satisfaction_logic(self, rule, satisfaction_logic):
+        """Generate satisfaction logic for unless rules"""
+        rule_id = rule.id.lower()
+        
+        # Primary rule satisfaction logic
+        primary_id = f"{rule_id}_primary"
+        satisfaction_logic.append(f"""
+% Non-vacuous satisfaction for {primary_id}
+holds_nv({primary_id}, T):-
+    time(T),
+    antecedent({primary_id}, T),
+    consequent({primary_id}, T).""")
+        
+        satisfaction_logic.append(f"""
+% Vacuous satisfaction for {primary_id}
+holds_v({primary_id}, T):-
+    time(T),
+    not antecedent({primary_id}, T),
+    not consequent({primary_id}, T).""")
+        
+        # Unless clause satisfaction logic
+        for i, unless_clause in enumerate(rule.unless_clauses, 1):
+            # Skip satisfaction logic for negated actions
+            if unless_clause.action.strip().startswith("not "):
+                continue
+                
+            unless_id = f"{rule_id}_unless{i}"
+            satisfaction_logic.append(f"""
+% Non-vacuous satisfaction for {unless_id}
+holds_nv({unless_id}, T):-
+    time(T),
+    antecedent({unless_id}, T),
+    consequent({unless_id}, T).""")
+            
+            satisfaction_logic.append(f"""
+% Vacuous satisfaction for {unless_id}
+holds_v({unless_id}, T):-
+    time(T),
+    not antecedent({unless_id}, T),
+    not consequent({unless_id}, T).""")
+    
+    def _generate_regular_satisfaction_logic(self, rule, satisfaction_logic):
+        """Generate satisfaction logic for regular rules"""
+        rule_id = rule.id.lower()
+        
+        # Non-vacuous satisfaction: antecedent true AND consequent met
+        satisfaction_logic.append(f"""
+% Non-vacuous satisfaction for {rule_id}
+holds_nv({rule_id}, T):-
+    time(T),
+    antecedent({rule_id}, T),
+    consequent({rule_id}, T).""")
+        
+        # Vacuous satisfaction: antecedent not true AND consequent does not happen
+        satisfaction_logic.append(f"""
+% Vacuous satisfaction for {rule_id}
+holds_v({rule_id}, T):-
+    time(T),
+    not antecedent({rule_id}, T),
+    not consequent({rule_id}, T).""")
+        
+        # Handle otherwise clause if present
+        if rule.otherwise_action:
+            otherwise_id = f"{rule_id}_otherwise"
+            satisfaction_logic.append(f"""
+% Non-vacuous satisfaction for {otherwise_id}
+holds_nv({otherwise_id}, T):-
+    time(T),
+    antecedent({otherwise_id}, T),
+    consequent({otherwise_id}, T).""")
+            
+            satisfaction_logic.append(f"""
+% Vacuous satisfaction for {otherwise_id}
+holds_v({otherwise_id}, T):-
+    time(T),
+    not antecedent({otherwise_id}, T),
+    not consequent({otherwise_id}, T).""")
     
     def _generate_action_generation_and_constraints(self) -> str:
         """Generate action generation and constraints"""
