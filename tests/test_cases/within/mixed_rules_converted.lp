@@ -116,9 +116,9 @@ holds_v(r3, T):-
 { happens(buttonpress, T, T) } :- time(T).
 
 % Action event instantiation
+{ happens(notifyuser, T, T) } :- time(T).
 { happens(lighton, T, T) } :- time(T).
 { happens(alarmsound, T, T) } :- time(T).
-{ happens(notifyuser, T, T) } :- time(T).
 
 % Measure instantiation
 { holds_at(isnight, T) } :- time(T).

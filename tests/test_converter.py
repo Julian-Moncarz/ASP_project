@@ -53,7 +53,7 @@ class TestSleecToClingoConverter:
         
         condition = "ButtonPress"
         result = self.converter._convert_condition_to_antecedent(condition)
-        expected = "happens(buttonpress, T), time(T)"
+        expected = "happens(buttonpress, T, T), time(T)"
         
         assert result == expected
 
@@ -71,7 +71,7 @@ class TestSleecToClingoConverter:
         
         condition = "ButtonPress and {isNight}"
         result = self.converter._convert_condition_to_antecedent(condition)
-        expected = "happens(buttonpress, T), holds_at(isnight, T), time(T)"
+        expected = "happens(buttonpress, T, T), holds_at(isnight, T), time(T)"
         
         assert result == expected
 
@@ -97,7 +97,7 @@ class TestSleecToClingoConverter:
         
         condition = "DoorOpen and (not {isLocked})"
         result = self.converter._convert_condition_to_antecedent(condition)
-        expected = "happens(dooropen, T), not holds_at(islocked, T), time(T)"
+        expected = "happens(dooropen, T, T), not holds_at(islocked, T), time(T)"
         
         assert result == expected
 
@@ -111,8 +111,8 @@ class TestSleecToClingoConverter:
             # Should preserve function parentheses
             ("holds_at(test, T)", "holds_at(test, T)"),
             # Mixed case
-            ("happens(event, T), (holds_at(a, T), holds_at(b, T)), time(T)",
-             "happens(event, T), holds_at(a, T), holds_at(b, T), time(T)")
+            ("happens(event, T, T), (holds_at(a, T), holds_at(b, T)), time(T)",
+             "happens(event, T, T), holds_at(a, T), holds_at(b, T), time(T)")
         ]
         
         for input_str, expected in test_cases:
@@ -278,8 +278,8 @@ rule_end
         result = self.converter.convert_sleec_string(sleec_content)
         
         # Check that both triggering and action events get choice rules
-        assert "{ happens(triggerevent, T) }" in result
-        assert "{ happens(actionevent, T) }" in result
+        assert "{ happens(triggerevent, T, T) }" in result
+        assert "{ happens(actionevent, T, T) }" in result
         assert "{ holds_at(testmeasure, T) }" in result
 
     def test_multiple_rules_interaction(self):
@@ -327,9 +327,9 @@ rule_end
         result = self.converter.convert_sleec_string(sleec_content)
         
         # Check critical elements
-        assert "antecedent(r1, T) :- happens(dooropen, T), not holds_at(islocked, T), time(T)" in result
-        assert "{ happens(dooropen, T) }" in result
-        assert "{ happens(alarmactivate, T) }" in result
+        assert "antecedent(r1, T) :- happens(dooropen, T, T), not holds_at(islocked, T), time(T)" in result
+        assert "{ happens(dooropen, T, T) }" in result
+        assert "{ happens(alarmactivate, T, T) }" in result
 
     def test_lightswitch_system_regression(self):
         """Test the lightswitch system case"""
@@ -350,8 +350,8 @@ rule_end
         result = self.converter.convert_sleec_string(sleec_content)
         
         # Check rule chain structure
-        assert "antecedent(r1, T) :- happens(buttonpress, T), time(T)" in result
-        assert "antecedent(r2, T) :- happens(lighton, T), holds_at(isnight, T), time(T)" in result
+        assert "antecedent(r1, T) :- happens(buttonpress, T, T), time(T)" in result
+        assert "antecedent(r2, T) :- happens(lighton, T, T), holds_at(isnight, T), time(T)" in result
 
     def test_aspen_system_regression(self):
         """Test the ASPEN R1 R2 case with complex conditions"""
@@ -373,7 +373,7 @@ rule_end
         result = self.converter.convert_sleec_string(sleec_content)
         
         # Check complex condition handling
-        expected_antecedent = "antecedent(r1, T) :- happens(encounterhuman, T), holds_at(samelanguage, T), holds_at(humanunderstands, T), time(T)"
+        expected_antecedent = "antecedent(r1, T) :- happens(encounterhuman, T, T), holds_at(samelanguage, T), holds_at(humanunderstands, T), time(T)"
         assert expected_antecedent in result
 
     # ========================================================================
@@ -432,7 +432,7 @@ rule_end
         result = self.converter.convert_sleec_string(sleec_content)
         
         # Should handle self-reference correctly
-        assert "happens(singleevent, T)" in result
+        assert "happens(singleevent, T, T)" in result
 
     def test_measure_types(self):
         """Test different measure types"""
@@ -480,13 +480,13 @@ rule_end
         # Should generate two separate rules with proper naming
         # Primary rule: R1_primary
         assert "exp(r1_primary)." in result
-        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
-        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T, T)." in result
         
         # Exception rule: R1_unless1  
         assert "exp(r1_unless1)." in result
-        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T), holds_at(isdaytime, T), time(T)." in result
-        assert "consequent(r1_unless1, T) :- time(T), happens(playjingle, T)." in result
+        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T, T), holds_at(isdaytime, T), time(T)." in result
+        assert "consequent(r1_unless1, T) :- time(T), happens(playjingle, T, T)." in result
 
     def test_parse_unless_with_negated_action(self):
         """Test parsing unless with 'not' action"""
@@ -506,15 +506,15 @@ rule_end
         
         # Primary rule: R1_primary
         assert "exp(r1_primary)." in result
-        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
-        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T, T)." in result
         
         # Exception rule should NOT exist for negated action
         assert "r1_unless1" not in result
         # Should not have any consequent that generates TurnOnLight when isDaytime is true
         lines = result.split('\n')
         invalid_consequent = any(
-            "consequent(" in line and "happens(turnonlight, T)" in line and "holds_at(isdaytime, T)" in line 
+            "consequent(" in line and "happens(turnonlight, T, T)" in line and "holds_at(isdaytime, T)" in line 
             for line in lines
         )
         assert not invalid_consequent, "Should not generate consequent for 'not' unless clause"
@@ -540,18 +540,18 @@ rule_end
         
         # Primary rule: ButtonPress AND NOT powerSave AND NOT emergencyMode -> TurnOnLight
         assert "exp(r1_primary)." in result
-        assert "antecedent(r1_primary, T) :- happens(buttonpress, T), not holds_at(powersave, T), not holds_at(emergencymode, T), time(T)." in result
-        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T)." in result
+        assert "antecedent(r1_primary, T) :- happens(buttonpress, T, T), not holds_at(powersave, T), not holds_at(emergencymode, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T, T)." in result
         
         # First unless: ButtonPress AND powerSave AND NOT emergencyMode -> PlaySound
         assert "exp(r1_unless1)." in result
-        assert "antecedent(r1_unless1, T) :- happens(buttonpress, T), holds_at(powersave, T), not holds_at(emergencymode, T), time(T)." in result
-        assert "consequent(r1_unless1, T) :- time(T), happens(playsound, T)." in result
+        assert "antecedent(r1_unless1, T) :- happens(buttonpress, T, T), holds_at(powersave, T), not holds_at(emergencymode, T), time(T)." in result
+        assert "consequent(r1_unless1, T) :- time(T), happens(playsound, T, T)." in result
         
         # Second unless (highest priority): ButtonPress AND emergencyMode -> ShowMessage
         assert "exp(r1_unless2)." in result
-        assert "antecedent(r1_unless2, T) :- happens(buttonpress, T), holds_at(emergencymode, T), time(T)." in result
-        assert "consequent(r1_unless2, T) :- time(T), happens(showmessage, T)." in result
+        assert "antecedent(r1_unless2, T) :- happens(buttonpress, T, T), holds_at(emergencymode, T), time(T)." in result
+        assert "consequent(r1_unless2, T) :- time(T), happens(showmessage, T, T)." in result
 
     def test_unless_with_complex_conditions(self):
         """Test unless with complex boolean conditions"""
@@ -573,13 +573,13 @@ rule_end
         
         # Primary rule: DoorOpen AND isNight AND NOT guestMode -> SoundAlarm
         assert "exp(r1_primary)." in result
-        assert "antecedent(r1_primary, T) :- happens(dooropen, T), holds_at(isnight, T), not holds_at(guestmode, T), time(T)." in result
-        assert "consequent(r1_primary, T) :- time(T), happens(soundalarm, T)." in result
+        assert "antecedent(r1_primary, T) :- happens(dooropen, T, T), holds_at(isnight, T), not holds_at(guestmode, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(soundalarm, T, T)." in result
         
         # Exception rule: DoorOpen AND isNight AND guestMode -> LogEntry
         assert "exp(r1_unless1)." in result
-        assert "antecedent(r1_unless1, T) :- happens(dooropen, T), holds_at(isnight, T), holds_at(guestmode, T), time(T)." in result
-        assert "consequent(r1_unless1, T) :- time(T), happens(logentry, T)." in result
+        assert "antecedent(r1_unless1, T) :- happens(dooropen, T, T), holds_at(isnight, T), holds_at(guestmode, T), time(T)." in result
+        assert "consequent(r1_unless1, T) :- time(T), happens(logentry, T, T)." in result
 
     def test_unless_conversion_simple(self):
         """Test conversion of simple unless to Clingo rules"""
@@ -630,8 +630,8 @@ rule_end
         
         # Primary rule should exist
         assert "exp(r1_primary)." in result
-        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
-        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T, T)." in result
         
         # Should NOT have r1_unless1 rule for negated action
         assert "exp(r1_unless1)" not in result
@@ -658,14 +658,14 @@ rule_end
         # Check all three cascading rules exist with proper priority logic
         expected_rules = [
             "exp(r1_primary).",
-            "antecedent(r1_primary, T) :- happens(buttonpress, T), not holds_at(powersave, T), not holds_at(emergencymode, T), time(T).",
-            "consequent(r1_primary, T) :- time(T), happens(turnonlight, T).",
+            "antecedent(r1_primary, T) :- happens(buttonpress, T, T), not holds_at(powersave, T), not holds_at(emergencymode, T), time(T).",
+            "consequent(r1_primary, T) :- time(T), happens(turnonlight, T, T).",
             "exp(r1_unless1).",
-            "antecedent(r1_unless1, T) :- happens(buttonpress, T), holds_at(powersave, T), not holds_at(emergencymode, T), time(T).",
-            "consequent(r1_unless1, T) :- time(T), happens(playsound, T).",
+            "antecedent(r1_unless1, T) :- happens(buttonpress, T, T), holds_at(powersave, T), not holds_at(emergencymode, T), time(T).",
+            "consequent(r1_unless1, T) :- time(T), happens(playsound, T, T).",
             "exp(r1_unless2).",
-            "antecedent(r1_unless2, T) :- happens(buttonpress, T), holds_at(emergencymode, T), time(T).",
-            "consequent(r1_unless2, T) :- time(T), happens(showmessage, T)."
+            "antecedent(r1_unless2, T) :- happens(buttonpress, T, T), holds_at(emergencymode, T), time(T).",
+            "consequent(r1_unless2, T) :- time(T), happens(showmessage, T, T)."
         ]
         
         for expected_rule in expected_rules:
@@ -695,13 +695,13 @@ rule_end
         # Unless rule (R1) - should generate two rules
         assert "exp(r1_primary)." in result
         assert "exp(r1_unless1)." in result
-        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
-        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T), holds_at(isdaytime, T), time(T)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T, T), holds_at(isdaytime, T), time(T)." in result
         
         # Regular rule (R2) - should generate one rule
         assert "exp(r2)." in result
-        assert "antecedent(r2, T) :- happens(dooropen, T), holds_at(islocked, T), time(T)." in result
-        assert "consequent(r2, T) :- time(T), happens(soundalarm, T)." in result
+        assert "antecedent(r2, T) :- happens(dooropen, T, T), holds_at(islocked, T), time(T)." in result
+        assert "consequent(r2, T) :- time(T), happens(soundalarm, T, T)." in result
 
     def test_unless_regression_light_system(self):
         """Test unless with real-world light system example"""
@@ -724,8 +724,8 @@ rule_end
         # Based on sleec_files/uses_unless/light.sleec
         assert "exp(r1_primary)." in result
         assert "exp(r1_unless1)." in result
-        assert "antecedent(r1_primary, T) :- happens(motiondetected, T), not holds_at(isdaytime, T), time(T)." in result
-        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T), holds_at(isdaytime, T), time(T)." in result
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T, T), not holds_at(isdaytime, T), time(T)." in result
+        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T, T), holds_at(isdaytime, T), time(T)." in result
 
     def test_unless_error_handling_invalid_syntax(self):
         """Test error handling for invalid unless syntax"""
@@ -742,6 +742,169 @@ rule_end
         # Should raise appropriate parsing error
         with pytest.raises(Exception):  # Will be more specific once implemented
             result = self.converter.convert_sleec_string(invalid_sleec)
+
+    # ========================================================================
+    # WITHIN STATEMENT TESTS - Testing temporal constraint support
+    # ========================================================================
+
+    def test_parse_within_statement_simple(self):
+        """Test parsing of simple within statements"""
+        sleec_text = """
+def_start
+    event ButtonPress
+    event LightOn
+def_end
+
+rule_start
+    R1 when ButtonPress then LightOn within 5 seconds
+rule_end
+"""
+        parser = SleecParser()
+        events, measures, rules, constants = parser.parse(sleec_text)
+        
+        assert len(rules) == 1
+        rule = rules[0]
+        assert rule.rule_id == "R1"
+        assert hasattr(rule, 'within_duration')
+        assert hasattr(rule, 'within_unit')
+        assert rule.within_duration == 5
+        assert rule.within_unit == "seconds"
+
+    def test_parse_within_statement_minutes(self):
+        """Test parsing of within statements with different time units"""
+        sleec_text = """
+def_start
+    event MotionDetected
+    event AlarmSound
+def_end
+
+rule_start
+    R1 when MotionDetected then AlarmSound within 2 minutes
+rule_end
+"""
+        parser = SleecParser()
+        events, measures, rules, constants = parser.parse(sleec_text)
+        
+        assert len(rules) == 1
+        rule = rules[0]
+        assert rule.within_duration == 2
+        assert rule.within_unit == "minutes"
+
+    def test_convert_within_temporal_constraints(self):
+        """Test generation of temporal constraints for within statements"""
+        sleec_text = """
+def_start
+    event ButtonPress
+    event LightOn
+def_end
+
+rule_start
+    R1 when ButtonPress then LightOn within 5 seconds
+rule_end
+"""
+        result = self.converter.convert_sleec_string(sleec_text)
+        
+        # Should contain choice rule with temporal window
+        assert "{ happens(lighton, T, T+5) }" in result
+        
+        # Should contain antecedent with temporal constraint
+        assert "antecedent(r1, T) :- happens(buttonpress, T, T), time(T)" in result
+        
+        # Should contain temporal window constraint
+        assert "T+5 <= 10" in result  # Assuming max_time = 10
+
+    def test_convert_within_chained_rules(self):
+        """Test conversion of chained rules where one rule triggers another within a time window"""
+        sleec_text = """
+def_start
+    event MotionDetected
+    event AlarmActivate
+    event SecurityAlert
+def_end
+
+rule_start
+    R1 when MotionDetected then AlarmActivate
+    R2 when AlarmActivate then SecurityAlert within 10 seconds
+rule_end
+"""
+        result = self.converter.convert_sleec_string(sleec_text)
+        
+        # R1 should be immediate
+        assert "{ happens(alarmactivate, T, T) }" in result
+        assert "antecedent(r1, T) :- happens(motiondetected, T, T), time(T)" in result
+        
+        # R2 should have temporal window
+        assert "{ happens(securityalert, T, T+10) }" in result
+        assert "antecedent(r2, T) :- happens(alarmactivate, T, T), time(T)" in result
+
+    def test_convert_mixed_immediate_and_within_rules(self):
+        """Test conversion of rules mixing immediate and within statements"""
+        sleec_text = """
+def_start
+    event ButtonPress
+    event LightOn
+    event AlarmSound
+    measure isNight: boolean
+def_end
+
+rule_start
+    R1 when ButtonPress then LightOn
+    R2 when ButtonPress and {isNight} then AlarmSound within 3 seconds
+rule_end
+"""
+        result = self.converter.convert_sleec_string(sleec_text)
+        
+        # R1 should be immediate (T, T)
+        assert "{ happens(lighton, T, T) }" in result
+        assert "antecedent(r1, T) :- happens(buttonpress, T, T), time(T)" in result
+        
+        # R2 should have temporal window (T, T+3)
+        assert "{ happens(alarmsound, T, T+3) }" in result
+        assert "antecedent(r2, T) :- happens(buttonpress, T, T), holds_at(isnight, T), time(T)" in result
+
+    def test_within_statement_with_unless_clause(self):
+        """Test within statements combined with unless clauses"""
+        sleec_text = """
+def_start
+    event MotionDetected
+    event TurnOnLight
+    event PlayJingle
+    measure isDayTime: boolean
+def_end
+
+rule_start
+    R1 when MotionDetected then TurnOnLight within 2 seconds unless {isDayTime} then PlayJingle
+rule_end
+"""
+        result = self.converter.convert_sleec_string(sleec_text)
+        
+        # Primary rule should have temporal window
+        assert "antecedent(r1_primary, T) :- happens(motiondetected, T, T), not holds_at(isdaytime, T), time(T)" in result
+        assert "consequent(r1_primary, T) :- time(T), happens(turnonlight, T, T+2)" in result
+        
+        # Unless clause should be immediate
+        assert "antecedent(r1_unless1, T) :- happens(motiondetected, T, T), holds_at(isdaytime, T), time(T)" in result
+        assert "consequent(r1_unless1, T) :- time(T), happens(playjingle, T, T)" in result
+
+    def test_within_different_time_units_conversion(self):
+        """Test conversion of different time units to uniform time scale"""
+        sleec_text = """
+def_start
+    event StartProcess
+    event CheckStatus
+    event SendAlert  
+def_end
+
+rule_start
+    R1 when StartProcess then CheckStatus within 30 seconds
+    R2 when StartProcess then SendAlert within 2 minutes
+rule_end
+"""
+        result = self.converter.convert_sleec_string(sleec_text)
+        
+        # Assuming seconds are the base unit
+        assert "{ happens(checkstatus, T, T+30) }" in result
+        assert "{ happens(sendalert, T, T+120) }" in result  # 2 minutes = 120 seconds
 
 
 # ========================================================================

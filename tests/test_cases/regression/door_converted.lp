@@ -27,9 +27,9 @@ measure(islocked).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(dooropen, T), not holds_at(islocked, T), time(T).
+antecedent(r1, T) :- happens(dooropen, T, T), not holds_at(islocked, T), time(T).
 
-consequent(r1, T) :- time(T), happens(alarmactivate, T).
+consequent(r1, T) :- time(T), happens(alarmactivate, T, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -69,10 +69,10 @@ holds_v(r1, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(dooropen, T) } :- time(T).
+{ happens(dooropen, T, T) } :- time(T).
 
 % Action event instantiation
-{ happens(alarmactivate, T) } :- time(T).
+{ happens(alarmactivate, T, T) } :- time(T).
 
 % Measure instantiation
 { holds_at(islocked, T) } :- time(T).
@@ -83,4 +83,4 @@ holds_v(r1, T):-
 
 #show holds_at/2.
 
-#show happens/2.
+#show happens/3.

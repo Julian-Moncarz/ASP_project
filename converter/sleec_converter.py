@@ -161,7 +161,14 @@ class SleecToClingoConverter:
         
         # Primary action (skip if it's a negated action)
         if not rule.action.strip().startswith("not "):
-            consequent_action = f"happens({rule.action.lower()}, T)"
+            # Use happens/3 format with temporal constraints
+            if rule.has_within_constraint():
+                # Convert time units to base time units (seconds)
+                duration_in_seconds = self._convert_to_base_time_unit(rule.within_duration, rule.within_unit)
+                consequent_action = f"happens({rule.action.lower()}, T, T+{duration_in_seconds})"
+            else:
+                # Immediate action: start and end at same time
+                consequent_action = f"happens({rule.action.lower()}, T, T)"
             rule_definitions.append(f"consequent({primary_id}, T) :- time(T), {consequent_action}.")
         
         # Unless rules: each unless clause gets higher priority
@@ -189,8 +196,8 @@ class SleecToClingoConverter:
             
             rule_definitions.append(f"antecedent({unless_id}, T) :- {unless_antecedent}.")
             
-            # Unless action
-            unless_consequent_action = f"happens({unless_clause.action.lower()}, T)"
+            # Unless action - always immediate (no temporal constraints for unless clauses)
+            unless_consequent_action = f"happens({unless_clause.action.lower()}, T, T)"
             rule_definitions.append(f"consequent({unless_id}, T) :- time(T), {unless_consequent_action}.")
     
     def _generate_regular_rule(self, rule, rule_definitions):
@@ -205,7 +212,13 @@ class SleecToClingoConverter:
         rule_definitions.append(f"antecedent({rule_id}, T) :- {antecedent_condition}.")
         
         # Consequent logic
-        consequent_action = f"happens({rule.action.lower()}, T)"
+        if rule.has_within_constraint():
+            # Convert time units to base time units (seconds) 
+            duration_in_seconds = self._convert_to_base_time_unit(rule.within_duration, rule.within_unit)
+            consequent_action = f"happens({rule.action.lower()}, T, T+{duration_in_seconds})"
+        else:
+            # Immediate action: start and end at same time
+            consequent_action = f"happens({rule.action.lower()}, T, T)"
         rule_definitions.append(f"consequent({rule_id}, T) :- time(T), {consequent_action}.")
         
         # Otherwise clause if present
@@ -213,12 +226,12 @@ class SleecToClingoConverter:
             otherwise_id = f"{rule_id}_otherwise"
             rule_definitions.append(f"exp({otherwise_id}).")
             
-            # Negated antecedent
-            negated_antecedent = self._negate_antecedent(rule.condition)
+            # Negated antecedent for otherwise clause
+            negated_antecedent = antecedent_condition.replace(", time(T)", f", not antecedent({rule_id}, T), time(T)")
             rule_definitions.append(f"antecedent({otherwise_id}, T) :- {negated_antecedent}.")
             
-            # Otherwise consequent
-            otherwise_consequent = f"happens({rule.otherwise_action.lower()}, T)"
+            # Otherwise consequent - always immediate
+            otherwise_consequent = f"happens({rule.otherwise_action.lower()}, T, T)"
             rule_definitions.append(f"consequent({otherwise_id}, T) :- time(T), {otherwise_consequent}.")
     
     def _convert_condition_to_antecedent(self, condition: str) -> str:
@@ -244,11 +257,11 @@ class SleecToClingoConverter:
         # This handles cases like (holds_at(x,T), holds_at(y,T)) -> holds_at(x,T), holds_at(y,T)
         condition = self._remove_logical_grouping_parentheses(condition)
         
-        # Replace event references with happens(eventName, T)
+        # Replace event references with happens(eventName, T, T) for trigger conditions
         for event in self.events:
             event_name = event.name.lower()
-            # Use word boundaries to avoid partial matches
-            condition = re.sub(rf'\b{event_name}\b', f'happens({event_name}, T)', condition)
+            # Use word boundaries to avoid partial matches - triggers are immediate
+            condition = re.sub(rf'\b{event_name}\b', f'happens({event_name}, T, T)', condition)
         
         # Add time constraint
         condition += ", time(T)"
@@ -419,7 +432,7 @@ holds_v({otherwise_id}, T):-
         if triggering_events:
             triggering_rules = []
             for event in triggering_events:
-                triggering_rules.append(f"{{ happens({event}, T) }} :- time(T).")
+                triggering_rules.append(f"{{ happens({event}, T, T) }} :- time(T).")
             sections.append("% Triggering event instantiation\n" + "\n".join(triggering_rules))
         
         # Generate action events (events that appear as consequences)
@@ -427,7 +440,7 @@ holds_v({otherwise_id}, T):-
         if action_events:
             action_rules = []
             for event in action_events:
-                action_rules.append(f"{{ happens({event}, T) }} :- time(T).")
+                action_rules.append(f"{{ happens({event}, T, T) }} :- time(T).")
             sections.append("% Action event instantiation\n" + "\n".join(action_rules))
         
         # Add measure instantiation if measures exist
@@ -522,3 +535,18 @@ holds_v({otherwise_id}, T):-
             """).strip() + "\n\n" + "\n\n".join(comparison_rules)
         
         return "" 
+
+    def _convert_to_base_time_unit(self, duration: int, unit: str) -> int:
+        """Convert time duration to base time units (seconds)"""
+        unit = unit.lower()
+        if unit == "second":
+            return duration
+        elif unit == "minute":
+            return duration * 60
+        elif unit == "hour":
+            return duration * 3600
+        elif unit == "day":
+            return duration * 86400
+        else:
+            # Default to seconds if unit is not recognized
+            return duration 

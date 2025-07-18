@@ -51,7 +51,7 @@ class ConverterConfig:
     def __post_init__(self):
         """Initialize default values that can't be set in field defaults"""
         if self.show_predicates is None:
-            self.show_predicates = ["holds_at/2", "happens/2"]
+            self.show_predicates = ["holds_at/2", "happens/3"]
     
     @property
     def time_domain(self) -> str:

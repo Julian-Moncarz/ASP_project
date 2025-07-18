@@ -7,8 +7,7 @@
         % 
         % Generated Rules:
         % R1: ButtonPress -> LightOn
-% R2: LightOn and {isNight} -> AlarmSound
-% R3: AlarmSound -> NotifyUser
+% R2: LightOn and {isNight} -> SetBrightnessToMax
 
 % =============================================================================
 % DOMAIN DEFINITIONS
@@ -19,8 +18,7 @@ time(0..10).
 % Events
 event(buttonpress).
 event(lighton).
-event(alarmsound).
-event(notifyuser).
+event(setbrightnesstomax).
 
 % Measures
 measure(isnight).
@@ -39,13 +37,7 @@ exp(r2).
 
 antecedent(r2, T) :- happens(lighton, T, T), holds_at(isnight, T), time(T).
 
-consequent(r2, T) :- time(T), happens(alarmsound, T, T+120).
-
-exp(r3).
-
-antecedent(r3, T) :- happens(alarmsound, T, T), time(T).
-
-consequent(r3, T) :- time(T), happens(notifyuser, T, T+60).
+consequent(r2, T) :- time(T), happens(setbrightnesstomax, T, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -91,20 +83,6 @@ holds_v(r2, T):-
     not consequent(r2, T).
 
 
-% Non-vacuous satisfaction for r3
-holds_nv(r3, T):-
-    time(T),
-    antecedent(r3, T),
-    consequent(r3, T).
-
-
-% Vacuous satisfaction for r3
-holds_v(r3, T):-
-    time(T),
-    not antecedent(r3, T),
-    not consequent(r3, T).
-
-
 % Hard constraint: every rule must be satisfied at every time point
 :- exp(R), time(T), not holds(R,T).
 
@@ -117,8 +95,7 @@ holds_v(r3, T):-
 
 % Action event instantiation
 { happens(lighton, T, T) } :- time(T).
-{ happens(alarmsound, T, T) } :- time(T).
-{ happens(notifyuser, T, T) } :- time(T).
+{ happens(setbrightnesstomax, T, T) } :- time(T).
 
 % Measure instantiation
 { holds_at(isnight, T) } :- time(T).

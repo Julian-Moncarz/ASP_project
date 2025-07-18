@@ -41,6 +41,10 @@ def compare_with_expected(actual, expected_file):
     with open(expected_file, 'r') as f:
         expected = f.read()
     
+    # Handle case where actual is None (converter failure)
+    if actual is None:
+        return False, "Converter failed to produce output"
+    
     if actual.strip() == expected.strip():
         return True, "PASS"
     else:
@@ -94,6 +98,15 @@ def run_tests():
             else:
                 print(f"❌ FAIL - {message}")
                 failed_tests += 1
+                
+                # Show diff for output mismatches
+                if actual_output and expected_path.exists() and "differs from expected" in message:
+                    print(f"    Expected file: {expected_path}")
+                    print(f"    Generated vs Expected (first 200 chars):")
+                    with open(expected_path, 'r') as f:
+                        expected_content = f.read()
+                    print(f"    Generated: {actual_output[:200]}...")
+                    print(f"    Expected:  {expected_content[:200]}...")
     
     print(f"\n🎯 Test Summary")
     print("=" * 50)

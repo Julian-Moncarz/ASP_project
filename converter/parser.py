@@ -56,6 +56,12 @@ class Rule:
     line_number: int
     otherwise_action: Optional[str] = None
     unless_clauses: Optional[List[UnlessClause]] = None
+    within_duration: Optional[int] = None
+    within_unit: Optional[str] = None
+    
+    def has_within_constraint(self) -> bool:
+        """Check if this rule has a within temporal constraint"""
+        return self.within_duration is not None and self.within_unit is not None
 
 class SleecParser:
     """Shared SLEEC parser for extracting definitions and rules"""
@@ -176,9 +182,28 @@ class SleecParser:
         matches = re.findall(rule_pattern, rules_content, re.DOTALL)
         
         for rule_id, condition, action_part in matches:
+            # Initialize within statement variables
+            within_duration = None
+            within_unit = None
+            
             # Parse unless clauses first (they take precedence over otherwise)
             unless_clauses = []
             remaining_action = action_part.strip()
+            
+            # Check for within statements at the end of the action
+            # Pattern: action within N (seconds|minutes|hours|days)
+            within_pattern = r'(.*?)\s+within\s+(\d+)\s+(seconds?|minutes?|hours?|days?)'
+            within_match = re.search(within_pattern, remaining_action, re.IGNORECASE)
+            
+            if within_match:
+                # Extract the within constraint
+                remaining_action = within_match.group(1).strip()
+                within_duration = int(within_match.group(2))
+                within_unit = within_match.group(3).lower()
+                
+                # Normalize time units to singular form
+                if within_unit.endswith('s'):
+                    within_unit = within_unit[:-1]
             
             # Extract all unless clauses using regex
             unless_pattern = r'\s+unless\s+\(([^)]+)\)\s+then\s+(.*?)(?=\s+unless|$)'
@@ -203,12 +228,12 @@ class SleecParser:
                 
             else:
                 # Handle otherwise clause (only if no unless clauses)
-                otherwise_match = re.search(r'(.*?)\s+otherwise\s+(.*)', action_part, re.DOTALL)
+                otherwise_match = re.search(r'(.*?)\s+otherwise\s+(.*)', remaining_action, re.DOTALL)
                 if otherwise_match:
                     action = otherwise_match.group(1).strip()
                     otherwise_action = otherwise_match.group(2).strip()
                 else:
-                    action = action_part.strip()
+                    action = remaining_action.strip()
                     otherwise_action = None
             
             # Find line number for this rule
@@ -221,7 +246,9 @@ class SleecParser:
                 action, 
                 line_num, 
                 otherwise_action,
-                unless_clauses if unless_clauses else None
+                unless_clauses if unless_clauses else None,
+                within_duration,
+                within_unit
             ))
 
     @staticmethod

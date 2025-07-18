@@ -43,17 +43,20 @@ holds(G, T):-
     exp(G),
     holds_v(G, T).
 
+
 % Non-vacuous satisfaction for r1
 holds_nv(r1, T):-
     time(T),
     antecedent(r1, T),
     consequent(r1, T).
 
+
 % Vacuous satisfaction for r1
 holds_v(r1, T):-
     time(T),
     not antecedent(r1, T),
     not consequent(r1, T).
+
 
 % Hard constraint: every rule must be satisfied at every time point
 :- exp(R), time(T), not holds(R,T).
@@ -72,4 +75,6 @@ holds_v(r1, T):-
 % OUTPUT SPECIFICATION
 % =============================================================================
 
-#show happens/3. 
+#show holds_at/2.
+
+#show happens/3.

@@ -27,9 +27,9 @@ measure(isready).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(triggerevent, T), holds_at(isready, T), time(T).
+antecedent(r1, T) :- happens(triggerevent, T, T), holds_at(isready, T), time(T).
 
-consequent(r1, T) :- time(T), happens(actionevent, T).
+consequent(r1, T) :- time(T), happens(actionevent, T, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -69,10 +69,10 @@ holds_v(r1, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(triggerevent, T) } :- time(T).
+{ happens(triggerevent, T, T) } :- time(T).
 
 % Action event instantiation
-{ happens(actionevent, T) } :- time(T).
+{ happens(actionevent, T, T) } :- time(T).
 
 % Measure instantiation
 { holds_at(isready, T) } :- time(T).
@@ -83,4 +83,4 @@ holds_v(r1, T):-
 
 #show holds_at/2.
 
-#show happens/2.
+#show happens/3.
