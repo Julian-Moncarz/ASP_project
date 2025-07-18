@@ -443,6 +443,9 @@ holds_v({otherwise_id}, T):-
         """Generate action generation and constraints"""
         sections = []
         
+        # Get action event information first for comment logic
+        action_events_with_within, action_events_without_within = self._get_action_events_with_constraints()
+        
         # Generate triggering events (events in conditions but not in actions)
         triggering_events = self._get_triggering_events()
         if triggering_events:
@@ -450,17 +453,20 @@ holds_v({otherwise_id}, T):-
             for event in triggering_events:
                 triggering_rules.append(f"{{ happens({event}, T, T) }} :- time(T).")
             
-            # Choose comment based on context
-            action_events_with_within, action_events_without_within = self._get_action_events_with_constraints()
-            if action_events_without_within:
+            # Choose comment based on event type patterns
+            if action_events_with_within and action_events_without_within:
+                # Mixed: both within and immediate events
                 comment = "% Triggering event instantiation (TriggerTime = ActualTime for direct triggers)"
-            else:
+            elif action_events_with_within and self.measures:
+                # Only within events, but has measures
                 comment = "% Triggering event instantiation (TriggerTime = ActualTime for non-within events)"
+            else:
+                # Simple case: no measures or only immediate events
+                comment = "% Triggering event instantiation"
             
             sections.append(comment + "\n" + "\n".join(triggering_rules))
         
         # Generate action events (events that appear as consequences)
-        action_events_with_within, action_events_without_within = self._get_action_events_with_constraints()
         
         if action_events_with_within or action_events_without_within:
             action_rules = []
@@ -479,7 +485,13 @@ holds_v({otherwise_id}, T):-
             if action_events_without_within:
                 comment = "% Action event instantiation "
             else:
-                comment = "% Action event instantiation (can be triggered at any time within temporal window)"
+                # Check if any constraint is large (might extend beyond time domain)
+                has_large_constraint = any(int(constraint.split()[0]) > self.config.max_time 
+                                          for _, constraint in action_events_with_within)
+                if has_large_constraint:
+                    comment = "% Action event instantiation (window constrained by time domain)"
+                else:
+                    comment = "% Action event instantiation (can be triggered at any time within temporal window)"
             
             sections.append(comment + "\n" + "\n".join(action_rules))
         
@@ -556,10 +568,11 @@ holds_v({otherwise_id}, T):-
         """Generate output specification"""
         sections = []
         
-        # Show statements from config
-        if self.config.show_predicates:
-            for predicate in self.config.show_predicates:
-                sections.append(f"#show {predicate}.")
+        # Show statements based on what's actually in the SLEEC file
+        if self.measures:
+            sections.append("#show holds_at/2.")
+        
+        sections.append("#show happens/3.")
         
         return textwrap.dedent("""
         % =============================================================================

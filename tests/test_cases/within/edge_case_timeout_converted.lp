@@ -62,16 +62,14 @@ holds_v(r1, T):-
 % ACTION GENERATION AND CONSTRAINTS
 % =============================================================================
 
-% Triggering event instantiation (TriggerTime = ActualTime for non-within events)
+% Triggering event instantiation
 { happens(startprocess, T, T) } :- time(T).
 
-% Action event instantiation (can be triggered at any time within temporal window)
+% Action event instantiation (window constrained by time domain)
 { happens(finishprocess, T1, T2) : T1 <= T2, T2 <= T1+15 } :- time(T1), time(T2).
 
 % =============================================================================
 % OUTPUT SPECIFICATION
 % =============================================================================
-
-#show holds_at/2.
 
 #show happens/3. 

@@ -65,7 +65,7 @@ holds_v(r1, T):-
 % ACTION GENERATION AND CONSTRAINTS
 % =============================================================================
 
-% Triggering event instantiation (TriggerTime = ActualTime for direct triggers)
+% Triggering event instantiation
 { happens(dooropen, T, T) } :- time(T).
 
 % Action event instantiation 
