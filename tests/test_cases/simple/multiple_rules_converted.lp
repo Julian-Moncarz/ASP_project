@@ -6,8 +6,8 @@
         % Format: Antecedent/consequent structure with rule satisfaction logic
         % 
         % Generated Rules:
-        % R1: ButtonPress -> LightOn
-% R2: LightOn and {isNight} -> SetBrightnessToMax
+        % R1: Event1 -> Action1
+% R2: Event2 and {condition1} -> Action2
 
 % =============================================================================
 % DOMAIN DEFINITIONS
@@ -16,12 +16,13 @@
 time(0..10).
 
 % Events
-event(buttonpress).
-event(lighton).
-event(setbrightnesstomax).
+event(event1).
+event(event2).
+event(action1).
+event(action2).
 
 % Measures
-measure(isnight).
+measure(condition1).
 
 % =============================================================================
 % SLEEC RULE DEFINITIONS
@@ -29,15 +30,15 @@ measure(isnight).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(buttonpress, T, T), time(T).
+antecedent(r1, T) :- happens(event1, T), time(T).
 
-consequent(r1, T) :- time(T), happens(lighton, T, T).
+consequent(r1, T) :- time(T), happens(action1, T).
 
 exp(r2).
 
-antecedent(r2, T) :- happens(lighton, T, T), holds_at(isnight, T), time(T).
+antecedent(r2, T) :- happens(event2, T), holds_at(condition1, T), time(T).
 
-consequent(r2, T) :- time(T), happens(setbrightnesstomax, T, T).
+consequent(r2, T) :- time(T), happens(action2, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -91,14 +92,15 @@ holds_v(r2, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(buttonpress, T, T) } :- time(T).
+{ happens(event1, T) } :- time(T).
+{ happens(event2, T) } :- time(T).
 
 % Action event instantiation
-{ happens(lighton, T, T) } :- time(T).
-{ happens(setbrightnesstomax, T, T) } :- time(T).
+{ happens(action2, T) } :- time(T).
+{ happens(action1, T) } :- time(T).
 
 % Measure instantiation
-{ holds_at(isnight, T) } :- time(T).
+{ holds_at(condition1, T) } :- time(T).
 
 % =============================================================================
 % OUTPUT SPECIFICATION
@@ -106,4 +108,4 @@ holds_v(r2, T):-
 
 #show holds_at/2.
 
-#show happens/3.
+#show happens/2.

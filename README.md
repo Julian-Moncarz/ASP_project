@@ -18,8 +18,16 @@ python3 convert.py ../sleec_files/simple_rules/lightswitch.sleec
 
 ```python
 from converter.sleec_converter import SleecToClingoConverter
+from converter.config import ConverterConfig
 
-converter = SleecToClingoConverter(max_time=10)
+# Use default configuration
+converter = SleecToClingoConverter()
+clingo_code = converter.convert_file("example.sleec")
+print(clingo_code)
+
+# Or use custom configuration
+config = ConverterConfig(max_time=10, numeric_max=20)
+converter = SleecToClingoConverter(config)
 clingo_code = converter.convert_file("example.sleec")
 print(clingo_code)
 ```

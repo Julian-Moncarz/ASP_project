@@ -6,7 +6,7 @@
 % Format: Antecedent/consequent structure with rule satisfaction logic
 % 
 % Generated Rules:
-% R1: DoorOpen and (not {isLocked}) -> AlarmActivate
+% R1: MotionDetected -> TurnOnLight
 
 % =============================================================================
 % DOMAIN DEFINITIONS
@@ -15,21 +15,29 @@
 time(0..10).
 
 % Events
-event(dooropen).
-event(alarmactivate).
+event(motiondetected).
+event(turnonlight).
+event(playjingle).
 
 % Measures
-measure(islocked).
+measure(isoccupied).
+measure(isdaytime).
 
 % =============================================================================
 % SLEEC RULE DEFINITIONS
 % =============================================================================
 
-exp(r1).
+exp(r1_primary).
 
-antecedent(r1, T) :- happens(dooropen, T, T), not holds_at(islocked, T), time(T).
+antecedent(r1_primary, T) :- happens(motiondetected, T, T), not holds_at(isdaytime, T), time(T).
 
-consequent(r1, T) :- time(T), happens(alarmactivate, T, T).
+consequent(r1_primary, T) :- time(T), happens(turnonlight, T, T).
+
+exp(r1_unless1).
+
+antecedent(r1_unless1, T) :- happens(motiondetected, T, T), holds_at(isdaytime, T), time(T).
+
+consequent(r1_unless1, T) :- time(T), happens(playjingle, T, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -47,18 +55,32 @@ holds(G, T):-
     holds_v(G, T).
 
 
-% Non-vacuous satisfaction for r1
-holds_nv(r1, T):-
+% Non-vacuous satisfaction for r1_primary
+holds_nv(r1_primary, T):-
     time(T),
-    antecedent(r1, T),
-    consequent(r1, T).
+    antecedent(r1_primary, T),
+    consequent(r1_primary, T).
 
 
-% Vacuous satisfaction for r1
-holds_v(r1, T):-
+% Vacuous satisfaction for r1_primary
+holds_v(r1_primary, T):-
     time(T),
-    not antecedent(r1, T),
-    not consequent(r1, T).
+    not antecedent(r1_primary, T),
+    not consequent(r1_primary, T).
+
+
+% Non-vacuous satisfaction for r1_unless1
+holds_nv(r1_unless1, T):-
+    time(T),
+    antecedent(r1_unless1, T),
+    consequent(r1_unless1, T).
+
+
+% Vacuous satisfaction for r1_unless1
+holds_v(r1_unless1, T):-
+    time(T),
+    not antecedent(r1_unless1, T),
+    not consequent(r1_unless1, T).
 
 
 % Hard constraint: every rule must be satisfied at every time point
@@ -69,13 +91,14 @@ holds_v(r1, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(dooropen, T, T) } :- time(T).
+{ happens(motiondetected, T, T) } :- time(T).
 
 % Action event instantiation
-{ happens(alarmactivate, T, T) } :- time(T).
+{ happens(turnonlight, T, T) } :- time(T).
 
 % Measure instantiation
-{ holds_at(islocked, T) } :- time(T).
+{ holds_at(isoccupied, T) } :- time(T).
+{ holds_at(isdaytime, T) } :- time(T).
 
 % =============================================================================
 % OUTPUT SPECIFICATION
@@ -83,4 +106,4 @@ holds_v(r1, T):-
 
 #show holds_at/2.
 
-#show happens/3.
+#show happens/2.

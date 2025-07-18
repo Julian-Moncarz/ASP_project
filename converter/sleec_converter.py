@@ -19,12 +19,22 @@ import textwrap
 from typing import List, Dict, Tuple, Optional, Set
 
 from converter.parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
+from converter.config import ConverterConfig, DEFAULT_CONFIG
 
 class SleecToClingoConverter:
     """Converts SLEEC rules to Clingo format using an antecedent/consequent approach"""
     
-    def __init__(self, max_time: int = 10):
-        self.max_time = max_time
+    def __init__(self, config: Optional[ConverterConfig] = None):
+        """Initialize converter with configuration
+        
+        Args:
+            config: Configuration object. If None, uses default configuration.
+        """
+        if config is None:
+            config = ConverterConfig.create_default()
+        
+        config.validate()
+        self.config = config
         self.events: List[Event] = []
         self.measures: List[Measure] = []
         self.constants: List[Constant] = []
@@ -85,7 +95,7 @@ class SleecToClingoConverter:
         sections = []
         
         # Time domain
-        sections.append(f"time(0..{self.max_time}).")
+        sections.append(self.config.time_domain)
         
         # Events - always use event() predicates
         event_lines = [f"event({event.name.lower()})." for event in self.events]
@@ -427,7 +437,7 @@ holds_v({otherwise_id}, T):-
                 if measure.type == MeasureType.BOOLEAN:
                     measure_rules.append(f"{{ holds_at({measure.name.lower()}, T) }} :- time(T).")
                 elif measure.type == MeasureType.NUMERIC:
-                    measure_rules.append(f"{{ holds_at({measure.name.lower()}, V, T) : V = 0..10 }} :- time(T).")
+                    measure_rules.append(f"{{ holds_at({measure.name.lower()}, V, T) : {self.config.numeric_range} }} :- time(T).")
                 elif measure.type == MeasureType.SCALE and measure.scale_values:
                     scale_options = " ; ".join([f"holds_at({measure.name.lower()}, {value.lower()}, T)" for value in measure.scale_values])
                     measure_rules.append(f"1 {{ {scale_options} }} 1 :- time(T).")
@@ -478,9 +488,10 @@ holds_v({otherwise_id}, T):-
         """Generate output specification"""
         sections = []
         
-        # Show statements
-        sections.append("#show holds_at/2.")
-        sections.append("#show happens/2.")
+        # Show statements from config
+        if self.config.show_predicates:
+            for predicate in self.config.show_predicates:
+                sections.append(f"#show {predicate}.")
         
         return textwrap.dedent("""
         % =============================================================================

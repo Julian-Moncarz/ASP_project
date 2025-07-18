@@ -29,15 +29,15 @@ measure(isnight).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(buttonpress, T, T), time(T).
+antecedent(r1, T) :- happens(buttonpress, T), time(T).
 
-consequent(r1, T) :- time(T), happens(lighton, T, T).
+consequent(r1, T) :- time(T), happens(lighton, T).
 
 exp(r2).
 
-antecedent(r2, T) :- happens(lighton, T, T), holds_at(isnight, T), time(T).
+antecedent(r2, T) :- happens(lighton, T), holds_at(isnight, T), time(T).
 
-consequent(r2, T) :- time(T), happens(setbrightnesstomax, T, T).
+consequent(r2, T) :- time(T), happens(setbrightnesstomax, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -91,11 +91,11 @@ holds_v(r2, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(buttonpress, T, T) } :- time(T).
+{ happens(buttonpress, T) } :- time(T).
 
 % Action event instantiation
-{ happens(lighton, T, T) } :- time(T).
-{ happens(setbrightnesstomax, T, T) } :- time(T).
+{ happens(setbrightnesstomax, T) } :- time(T).
+{ happens(lighton, T) } :- time(T).
 
 % Measure instantiation
 { holds_at(isnight, T) } :- time(T).
@@ -106,4 +106,4 @@ holds_v(r2, T):-
 
 #show holds_at/2.
 
-#show happens/3.
+#show happens/2.

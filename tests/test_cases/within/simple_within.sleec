@@ -1,0 +1,13 @@
+def_start
+    // Events
+    event MotionDetected
+    event AlarmSound
+
+    // Measures
+    measure isArmed: boolean
+def_end
+
+rule_start
+    // Basic within rule: if motion detected and armed, sound alarm within 3 minutes
+    R1 when MotionDetected and {isArmed} then AlarmSound within 3 minutes
+rule_end 

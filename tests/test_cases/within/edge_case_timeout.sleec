@@ -1,0 +1,11 @@
+def_start
+    // Events
+    event StartProcess
+    event FinishProcess
+
+def_end
+
+rule_start
+    // Edge case: within window extends beyond time domain
+    R1 when StartProcess then FinishProcess within 15 minutes
+rule_end 

@@ -6,8 +6,8 @@
         % Format: Antecedent/consequent structure with rule satisfaction logic
         % 
         % Generated Rules:
-        % R1: ButtonPress -> LightOn
-% R2: LightOn and {isNight} -> SetBrightnessToMax
+        % R1: EncounterHuman and ({sameLanguage} and {humanUnderstands}) -> InformHuman
+% R2: EncounterHuman -> IdentifyActivity
 
 % =============================================================================
 % DOMAIN DEFINITIONS
@@ -16,12 +16,13 @@
 time(0..10).
 
 % Events
-event(buttonpress).
-event(lighton).
-event(setbrightnesstomax).
+event(encounterhuman).
+event(informhuman).
+event(identifyactivity).
 
 % Measures
-measure(isnight).
+measure(samelanguage).
+measure(humanunderstands).
 
 % =============================================================================
 % SLEEC RULE DEFINITIONS
@@ -29,15 +30,15 @@ measure(isnight).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(buttonpress, T, T), time(T).
+antecedent(r1, T) :- happens(encounterhuman, T), holds_at(samelanguage, T), holds_at(humanunderstands, T), time(T).
 
-consequent(r1, T) :- time(T), happens(lighton, T, T).
+consequent(r1, T) :- time(T), happens(informhuman, T).
 
 exp(r2).
 
-antecedent(r2, T) :- happens(lighton, T, T), holds_at(isnight, T), time(T).
+antecedent(r2, T) :- happens(encounterhuman, T), time(T).
 
-consequent(r2, T) :- time(T), happens(setbrightnesstomax, T, T).
+consequent(r2, T) :- time(T), happens(identifyactivity, T).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -91,14 +92,15 @@ holds_v(r2, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(buttonpress, T, T) } :- time(T).
+{ happens(encounterhuman, T) } :- time(T).
 
 % Action event instantiation
-{ happens(lighton, T, T) } :- time(T).
-{ happens(setbrightnesstomax, T, T) } :- time(T).
+{ happens(identifyactivity, T) } :- time(T).
+{ happens(informhuman, T) } :- time(T).
 
 % Measure instantiation
-{ holds_at(isnight, T) } :- time(T).
+{ holds_at(samelanguage, T) } :- time(T).
+{ holds_at(humanunderstands, T) } :- time(T).
 
 % =============================================================================
 % OUTPUT SPECIFICATION
@@ -106,4 +108,4 @@ holds_v(r2, T):-
 
 #show holds_at/2.
 
-#show happens/3.
+#show happens/2.

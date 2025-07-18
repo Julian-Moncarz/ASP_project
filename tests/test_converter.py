@@ -23,6 +23,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from converter.sleec_converter import SleecToClingoConverter
 from converter.parser import SleecParser, Event, Measure, Rule, MeasureType
+from converter.config import ConverterConfig, DEFAULT_CONFIG
 
 
 class TestSleecToClingoConverter:
@@ -225,9 +226,9 @@ rule_end
                                    input=result, text=True, capture_output=True)
             # If clingo is available, test parsing with timeout
             if process.returncode == 0:
-                # Use --models=1 instead of --models=0 to avoid hanging
-                syntax_check = subprocess.run(['clingo', temp_file, '--models=1', '--time-limit=5'], 
-                                            capture_output=True, text=True, timeout=10)
+                # Use test configuration for syntax validation
+                syntax_check = subprocess.run(['clingo', temp_file, f'--models={DEFAULT_CONFIG.test_models}', f'--time-limit={DEFAULT_CONFIG.test_time_limit}'], 
+                                            capture_output=True, text=True, timeout=DEFAULT_CONFIG.test_timeout)
                 # Should not have parsing errors
                 assert "error:" not in syntax_check.stderr.lower()
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -452,7 +453,7 @@ rule_end
         
         # Check measure instantiation
         assert "{ holds_at(boolmeasure, T) }" in result
-        assert "{ holds_at(nummeasure, V, T) : V = 0..10 }" in result
+        assert f"{{ holds_at(nummeasure, V, T) : {DEFAULT_CONFIG.numeric_range} }}" in result
         assert "holds_at(scalemeasure, low, T)" in result
 
     # ========================================================================
@@ -751,8 +752,11 @@ class TestUtils:
     """Utility functions for testing"""
     
     @staticmethod
-    def run_clingo_on_result(clingo_code, models=5):
+    def run_clingo_on_result(clingo_code, models=None):
         """Run clingo on generated code and return models"""
+        if models is None:
+            models = DEFAULT_CONFIG.utility_test_models
+            
         try:
             with tempfile.NamedTemporaryFile(mode='w', suffix='.lp', delete=False) as f:
                 f.write(clingo_code)

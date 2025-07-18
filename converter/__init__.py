@@ -12,8 +12,9 @@ Shared utilities:
 - Data classes: Event, Measure, Constant, Rule, MeasureType
 """
 
-from .parser import SleecParser, MeasureType, Measure, Event, Constant, Rule
+from .parser import SleecParser, MeasureType, Measure, Event, Constant, Rule, UnlessClause
 from .sleec_converter import SleecToClingoConverter
+from .config import ConverterConfig, DEFAULT_CONFIG
 
 __all__ = [
     'SleecParser',
@@ -22,5 +23,8 @@ __all__ = [
     'Event', 
     'Constant',
     'Rule',
-    'SleecToClingoConverter'
+    'UnlessClause',
+    'SleecToClingoConverter',
+    'ConverterConfig',
+    'DEFAULT_CONFIG'
 ] 

@@ -16,7 +16,7 @@ import sys
 import os
 from pathlib import Path
 
-from converter import SleecToClingoConverter
+from converter import SleecToClingoConverter, DEFAULT_CONFIG
 
 def main():
     if len(sys.argv) < 2:
@@ -51,7 +51,7 @@ def main():
         print(f"✅ Successfully converted: {input_file} → {output_file}")
         print()
         print("To run the generated file:")
-        print(f"  clingo {output_file} --models=3  or however many models you want")
+        print(f"  clingo {output_file} {DEFAULT_CONFIG.clingo_suggestion} or however many models you want")
         
     except FileNotFoundError:
         print(f"❌ Error: Input file '{input_file}' not found")

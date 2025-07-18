@@ -1,0 +1,21 @@
+def_start
+    // Events
+    event ButtonPress
+    event LightOn
+    event AlarmSound
+    event NotifyUser
+
+    // Measures
+    measure isNight: boolean
+def_end
+
+rule_start
+    // Immediate rule: button press immediately turns on light
+    R1 when ButtonPress then LightOn
+    
+    // Within rule: when light is on at night, sound alarm within 2 minutes
+    R2 when LightOn and {isNight} then AlarmSound within 2 minutes
+    
+    // Another within rule: when alarm sounds, notify user within 1 minute  
+    R3 when AlarmSound then NotifyUser within 1 minute
+rule_end 
