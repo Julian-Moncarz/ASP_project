@@ -68,27 +68,28 @@ class SleecToClingoConverter:
             self._generate_output_specification()
         ]
         
-        return '\n\n'.join(filter(None, sections))
+        return '\n\n'.join(filter(None, sections)) + ' '
     
     def _generate_header(self) -> str:
         """Generate the file header"""
         rule_desc = ""
         for rule in self.rules:
-            rule_desc += f"% {rule.id}: {rule.condition} -> {rule.action}\n"
+            if rule.within_constraint:
+                rule_desc += f"% {rule.id}: {rule.condition} -> {rule.action} within {rule.within_constraint}\n"
+            else:
+                rule_desc += f"% {rule.id}: {rule.condition} -> {rule.action}\n"
             if rule.otherwise_action:
                 rule_desc += f"%   otherwise -> {rule.otherwise_action}\n"
         
-        return textwrap.dedent(f"""
-        % =============================================================================
-        % SLEEC to Clingo Conversion (Dalal's Format)
-        % =============================================================================
-        % 
-        % This file was automatically generated from SLEEC rules.
-        % Format: Antecedent/consequent structure with rule satisfaction logic
-        % 
-        % Generated Rules:
-        {rule_desc}
-        """).strip()
+        return f"""% =============================================================================
+% SLEEC to Clingo Conversion (Dalal's Format with Within Support)
+% =============================================================================
+% 
+% This file was automatically generated from SLEEC rules.
+% Format: Antecedent/consequent structure with temporal constraints
+% 
+% Generated Rules:
+{rule_desc.rstrip()}"""
     
     def _generate_domain_definitions(self) -> str:
         """Generate domain definitions (events, measures, time)"""
@@ -161,7 +162,13 @@ class SleecToClingoConverter:
         
         # Primary action (skip if it's a negated action)
         if not rule.action.strip().startswith("not "):
-            consequent_action = f"happens({rule.action.lower()}, T)"
+            if rule.within_constraint:
+                # Parse constraint to get numeric value (e.g., "3 minutes" -> 3)
+                constraint_parts = rule.within_constraint.split()
+                constraint_value = constraint_parts[0]
+                consequent_action = f"happens({rule.action.lower()}, T, T2), T <= T2, T2 <= T+{constraint_value}, time(T2)"
+            else:
+                consequent_action = f"happens({rule.action.lower()}, T, T)"
             rule_definitions.append(f"consequent({primary_id}, T) :- time(T), {consequent_action}.")
         
         # Unless rules: each unless clause gets higher priority
@@ -190,7 +197,7 @@ class SleecToClingoConverter:
             rule_definitions.append(f"antecedent({unless_id}, T) :- {unless_antecedent}.")
             
             # Unless action
-            unless_consequent_action = f"happens({unless_clause.action.lower()}, T)"
+            unless_consequent_action = f"happens({unless_clause.action.lower()}, T, T)"
             rule_definitions.append(f"consequent({unless_id}, T) :- time(T), {unless_consequent_action}.")
     
     def _generate_regular_rule(self, rule, rule_definitions):
@@ -202,10 +209,25 @@ class SleecToClingoConverter:
         
         # Antecedent logic
         antecedent_condition = self._convert_condition_to_antecedent(rule.condition)
-        rule_definitions.append(f"antecedent({rule_id}, T) :- {antecedent_condition}.")
+        
+        # Determine if this rule involves temporal events
+        within_events = self._get_within_events()
+        uses_temporal_events = any(event.name.lower() in within_events for event in self.events 
+                                   if event.name.lower() in rule.condition.lower())
+        
+        if uses_temporal_events:
+            rule_definitions.append(f"antecedent({rule_id}, T2) :- {antecedent_condition}.")
+        else:
+            rule_definitions.append(f"antecedent({rule_id}, T) :- {antecedent_condition}.")
         
         # Consequent logic
-        consequent_action = f"happens({rule.action.lower()}, T)"
+        if rule.within_constraint:
+            # Parse constraint to get numeric value (e.g., "3 minutes" -> 3)
+            constraint_parts = rule.within_constraint.split()
+            constraint_value = constraint_parts[0]
+            consequent_action = f"happens({rule.action.lower()}, T, T2), T <= T2, T2 <= T+{constraint_value}, time(T2)"
+        else:
+            consequent_action = f"happens({rule.action.lower()}, T, T)"
         rule_definitions.append(f"consequent({rule_id}, T) :- time(T), {consequent_action}.")
         
         # Otherwise clause if present
@@ -218,7 +240,7 @@ class SleecToClingoConverter:
             rule_definitions.append(f"antecedent({otherwise_id}, T) :- {negated_antecedent}.")
             
             # Otherwise consequent
-            otherwise_consequent = f"happens({rule.otherwise_action.lower()}, T)"
+            otherwise_consequent = f"happens({rule.otherwise_action.lower()}, T, T)"
             rule_definitions.append(f"consequent({otherwise_id}, T) :- time(T), {otherwise_consequent}.")
     
     def _convert_condition_to_antecedent(self, condition: str) -> str:
@@ -244,14 +266,24 @@ class SleecToClingoConverter:
         # This handles cases like (holds_at(x,T), holds_at(y,T)) -> holds_at(x,T), holds_at(y,T)
         condition = self._remove_logical_grouping_parentheses(condition)
         
-        # Replace event references with happens(eventName, T)
+        # Get events that are produced with within constraints
+        within_events = self._get_within_events()
+        
+        # Replace event references
         for event in self.events:
             event_name = event.name.lower()
-            # Use word boundaries to avoid partial matches
-            condition = re.sub(rf'\b{event_name}\b', f'happens({event_name}, T)', condition)
+            if event_name in within_events:
+                # Events with within constraints use temporal format
+                condition = re.sub(rf'\b{event_name}\b', f'happens({event_name}, T, T2)', condition)
+            else:
+                # Regular events use standard format
+                condition = re.sub(rf'\b{event_name}\b', f'happens({event_name}, T, T)', condition)
         
-        # Add time constraint
-        condition += ", time(T)"
+        # Add time constraints
+        if any(event.name.lower() in within_events for event in self.events if event.name.lower() in condition):
+            condition += ", time(T), time(T2)"
+        else:
+            condition += ", time(T)"
         
         return condition
     
@@ -322,8 +354,7 @@ class SleecToClingoConverter:
                 self._generate_regular_satisfaction_logic(rule, satisfaction_logic)
         
         # Hard constraint: every rule must be satisfied at every time point
-        satisfaction_logic.append("""
-% Hard constraint: every rule must be satisfied at every time point
+        satisfaction_logic.append("""% Hard constraint: every rule must be satisfied at every time point
 :- exp(R), time(T), not holds(R,T).""")
         
         return textwrap.dedent("""
@@ -378,16 +409,14 @@ holds_v({unless_id}, T):-
         rule_id = rule.id.lower()
         
         # Non-vacuous satisfaction: antecedent true AND consequent met
-        satisfaction_logic.append(f"""
-% Non-vacuous satisfaction for {rule_id}
+        satisfaction_logic.append(f"""% Non-vacuous satisfaction for {rule_id}
 holds_nv({rule_id}, T):-
     time(T),
     antecedent({rule_id}, T),
     consequent({rule_id}, T).""")
         
         # Vacuous satisfaction: antecedent not true AND consequent does not happen
-        satisfaction_logic.append(f"""
-% Vacuous satisfaction for {rule_id}
+        satisfaction_logic.append(f"""% Vacuous satisfaction for {rule_id}
 holds_v({rule_id}, T):-
     time(T),
     not antecedent({rule_id}, T),
@@ -419,16 +448,40 @@ holds_v({otherwise_id}, T):-
         if triggering_events:
             triggering_rules = []
             for event in triggering_events:
-                triggering_rules.append(f"{{ happens({event}, T) }} :- time(T).")
-            sections.append("% Triggering event instantiation\n" + "\n".join(triggering_rules))
+                triggering_rules.append(f"{{ happens({event}, T, T) }} :- time(T).")
+            
+            # Choose comment based on context
+            action_events_with_within, action_events_without_within = self._get_action_events_with_constraints()
+            if action_events_without_within:
+                comment = "% Triggering event instantiation (TriggerTime = ActualTime for direct triggers)"
+            else:
+                comment = "% Triggering event instantiation (TriggerTime = ActualTime for non-within events)"
+            
+            sections.append(comment + "\n" + "\n".join(triggering_rules))
         
         # Generate action events (events that appear as consequences)
-        action_events = self._get_action_events()
-        if action_events:
+        action_events_with_within, action_events_without_within = self._get_action_events_with_constraints()
+        
+        if action_events_with_within or action_events_without_within:
             action_rules = []
-            for event in action_events:
-                action_rules.append(f"{{ happens({event}, T) }} :- time(T).")
-            sections.append("% Action event instantiation\n" + "\n".join(action_rules))
+            
+            # Add non-within events first
+            for event in action_events_without_within:
+                action_rules.append(f"{{ happens({event}, T, T) }} :- time(T).")
+            
+            # Add within events
+            for event, constraint in action_events_with_within:
+                constraint_parts = constraint.split()
+                constraint_value = constraint_parts[0]
+                action_rules.append(f"{{ happens({event}, T1, T2) : T1 <= T2, T2 <= T1+{constraint_value} }} :- time(T1), time(T2).")
+            
+            # Choose comment based on context
+            if action_events_without_within:
+                comment = "% Action event instantiation "
+            else:
+                comment = "% Action event instantiation (can be triggered at any time within temporal window)"
+            
+            sections.append(comment + "\n" + "\n".join(action_rules))
         
         # Add measure instantiation if measures exist
         if self.measures:
@@ -471,18 +524,33 @@ holds_v({otherwise_id}, T):-
         # Triggering events are those in conditions but not in actions
         return condition_events - action_events
     
-    def _get_action_events(self) -> Set[str]:
-        """Get events that appear in rule actions (consequence events)"""
-        action_events = set()
+    def _get_action_events_with_constraints(self) -> Tuple[List[Tuple[str, str]], Set[str]]:
+        """Get action events separated by whether they have within constraints"""
+        action_events_with_within = []
+        action_events_without_within = set()
         
         for rule in self.rules:
             # Extract events from actions
             if rule.action:
-                action_events.add(rule.action.lower())
+                if rule.within_constraint:
+                    action_events_with_within.append((rule.action.lower(), rule.within_constraint))
+                else:
+                    action_events_without_within.add(rule.action.lower())
             if rule.otherwise_action:
-                action_events.add(rule.otherwise_action.lower())
+                # Otherwise actions don't inherit within constraints
+                action_events_without_within.add(rule.otherwise_action.lower())
         
-        return action_events
+        return action_events_with_within, action_events_without_within
+    
+    def _get_within_events(self) -> Set[str]:
+        """Get events that are produced with within constraints"""
+        within_events = set()
+        
+        for rule in self.rules:
+            if rule.action and rule.within_constraint:
+                within_events.add(rule.action.lower())
+        
+        return within_events
     
     def _generate_output_specification(self) -> str:
         """Generate output specification"""

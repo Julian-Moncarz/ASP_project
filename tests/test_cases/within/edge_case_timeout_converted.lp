@@ -6,7 +6,7 @@
 % Format: Antecedent/consequent structure with temporal constraints
 % 
 % Generated Rules:
-% R1: {testCondition} -> ActionEvent
+% R1: StartProcess -> FinishProcess within 15 minutes
 
 % =============================================================================
 % DOMAIN DEFINITIONS
@@ -15,10 +15,8 @@
 time(0..10).
 
 % Events
-event(actionevent).
-
-% Measures
-measure(testcondition).
+event(startprocess).
+event(finishprocess).
 
 % =============================================================================
 % SLEEC RULE DEFINITIONS
@@ -26,9 +24,9 @@ measure(testcondition).
 
 exp(r1).
 
-antecedent(r1, T) :- holds_at(testcondition, T), time(T).
+antecedent(r1, T) :- happens(startprocess, T, T), time(T).
 
-consequent(r1, T) :- time(T), happens(actionevent, T, T).
+consequent(r1, T) :- time(T), happens(finishprocess, T, T2), T <= T2, T2 <= T+15, time(T2).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -64,11 +62,11 @@ holds_v(r1, T):-
 % ACTION GENERATION AND CONSTRAINTS
 % =============================================================================
 
-% Action event instantiation 
-{ happens(actionevent, T, T) } :- time(T).
+% Triggering event instantiation (TriggerTime = ActualTime for non-within events)
+{ happens(startprocess, T, T) } :- time(T).
 
-% Measure instantiation
-{ holds_at(testcondition, T) } :- time(T).
+% Action event instantiation (can be triggered at any time within temporal window)
+{ happens(finishprocess, T1, T2) : T1 <= T2, T2 <= T1+15 } :- time(T1), time(T2).
 
 % =============================================================================
 % OUTPUT SPECIFICATION
