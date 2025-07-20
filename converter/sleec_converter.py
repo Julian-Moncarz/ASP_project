@@ -245,28 +245,51 @@ class SleecToClingoConverter:
     
     def _convert_condition_to_antecedent(self, condition: str) -> str:
         """Convert a SLEEC condition to antecedent format"""
-        # Convert to lowercase
-        condition = condition.lower()
+        # Apply transformations in logical order
+        condition = self._normalize_condition_case(condition)
+        condition = self._replace_measure_references(condition)
+        condition = self._replace_logical_operators(condition)
+        condition = self._clean_parentheses(condition)
+        condition = self._replace_event_references(condition)
+        condition = self._add_time_constraints(condition)
         
+        return condition
+    
+    def _normalize_condition_case(self, condition: str) -> str:
+        """Convert condition to lowercase for consistent processing"""
+        return condition.lower()
+    
+    def _replace_measure_references(self, condition: str) -> str:
+        """Replace measure references with Clingo holds_at predicates"""
         # Replace measure references {measureName} with holds_at(measureName, T)
         condition = re.sub(r'\{(\w+)\}', r'holds_at(\1, T)', condition)
         
         # Replace measure comparisons {measureName} = value with holds_at(measureName, value, T)
         condition = re.sub(r'holds_at\((\w+), T\)\s*=\s*(\w+)', r'holds_at(\1, \2, T)', condition)
         
+        return condition
+    
+    def _replace_logical_operators(self, condition: str) -> str:
+        """Replace SLEEC logical operators with Clingo equivalents"""
         # Replace logical operators
         condition = condition.replace(' and ', ', ')
         condition = condition.replace(' or ', '; ')
         condition = condition.replace(' not ', 'not ')
         
+        return condition
+    
+    def _clean_parentheses(self, condition: str) -> str:
+        """Clean up unnecessary parentheses for Clingo syntax"""
         # Remove parentheses around 'not' expressions - fix for Clingo syntax
         condition = re.sub(r'\(\s*not\s+([^)]+)\)', r'not \1', condition)
         
         # Remove unnecessary parentheses around comma-separated expressions
-        # This handles cases like (holds_at(x,T), holds_at(y,T)) -> holds_at(x,T), holds_at(y,T)
         condition = self._remove_logical_grouping_parentheses(condition)
         
-        # Get events that are produced with within constraints
+        return condition
+    
+    def _replace_event_references(self, condition: str) -> str:
+        """Replace event names with Clingo happens predicates"""
         within_events = self._get_within_events()
         
         # Replace event references
@@ -278,6 +301,12 @@ class SleecToClingoConverter:
             else:
                 # Regular events use standard format
                 condition = re.sub(rf'\b{event_name}\b', f'happens({event_name}, T, T)', condition)
+        
+        return condition
+    
+    def _add_time_constraints(self, condition: str) -> str:
+        """Add appropriate time constraints based on events used"""
+        within_events = self._get_within_events()
         
         # Add time constraints
         if any(event.name.lower() in within_events for event in self.events if event.name.lower() in condition):
