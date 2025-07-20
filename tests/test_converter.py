@@ -771,6 +771,47 @@ rule_end
         assert "exp(r1_primary)." in result
         assert "exp(r1_unless1)." in result
 
+    def test_generate_unless_rules_comprehensive(self):
+        """Test unless rule generation behavior before refactoring - BEHAVIOR CAPTURE"""
+        from converter.parser import UnlessClause
+        
+        # Setup converter with events and measures
+        self.converter.events = [Event("MotionDetected", 1), Event("TurnOnLight", 2), Event("PlayJingle", 3)]
+        self.converter.measures = [Measure("isDaytime", MeasureType.BOOLEAN, 1)]
+        
+        # Create a rule with unless clause
+        unless_clause = UnlessClause(condition="isDaytime", action="PlayJingle")
+        rule = Rule("R1", "MotionDetected", "TurnOnLight", 1, unless_clauses=[unless_clause])
+        
+        # Test the unless rule generation
+        rule_definitions = []
+        self.converter._generate_unless_rules(rule, rule_definitions)
+        
+        # Verify the expected structure
+        assert len(rule_definitions) >= 6, f"Expected at least 6 rule definitions, got {len(rule_definitions)}"
+        
+        # Check primary rule parts
+        assert "exp(r1_primary)." in rule_definitions
+        assert any("antecedent(r1_primary, T)" in rule_def for rule_def in rule_definitions)
+        assert any("consequent(r1_primary, T)" in rule_def for rule_def in rule_definitions)
+        
+        # Check unless rule parts  
+        assert "exp(r1_unless1)." in rule_definitions
+        assert any("antecedent(r1_unless1, T)" in rule_def for rule_def in rule_definitions)
+        assert any("consequent(r1_unless1, T)" in rule_def for rule_def in rule_definitions)
+        
+        # Verify complex antecedent logic (primary rule should negate unless condition)
+        primary_antecedent = next((rule_def for rule_def in rule_definitions 
+                                  if "antecedent(r1_primary, T)" in rule_def), None)
+        assert primary_antecedent is not None
+        assert "not isdaytime" in primary_antecedent, f"Primary antecedent missing negation: {primary_antecedent}"
+        
+        # Verify unless rule includes the unless condition
+        unless_antecedent = next((rule_def for rule_def in rule_definitions 
+                                 if "antecedent(r1_unless1, T)" in rule_def), None)  
+        assert unless_antecedent is not None
+        assert "isdaytime" in unless_antecedent, f"Unless antecedent missing condition: {unless_antecedent}"
+
     def test_convert_condition_to_antecedent_comprehensive(self):
         """Test comprehensive condition conversion behavior before refactoring - BEHAVIOR CAPTURE"""
         self.converter.events = [
