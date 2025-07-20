@@ -849,6 +849,53 @@ rule_end
         expected = "happens(motiondetected, T, T), holds_at(isdaytime, T), time(T)"
         assert result == expected, f"Mixed case: expected {expected}, got {result}"
 
+    def test_generate_action_generation_and_constraints_comprehensive(self):
+        """Test action generation and constraints behavior before refactoring - BEHAVIOR CAPTURE"""
+        
+        # Setup converter with complex scenario
+        self.converter.events = [Event("MotionDetected", 1), Event("TurnOnLight", 2), Event("PlaySound", 3)]
+        self.converter.measures = [
+            Measure("isDaytime", MeasureType.BOOLEAN, 1),
+            Measure("temperature", MeasureType.NUMERIC, 2),
+            Measure("mood", MeasureType.SCALE, 3, ["happy", "sad", "neutral"])
+        ]
+        
+        # Create rules with different event usage patterns
+        self.converter.rules = [
+            Rule("R1", "MotionDetected", "TurnOnLight", 1),  # triggering -> action
+            Rule("R2", "MotionDetected", "PlaySound", 2, within_constraint="5 minutes")  # triggering -> action with within
+        ]
+        
+        # Test the method
+        result = self.converter._generate_action_generation_and_constraints()
+        
+        # Verify basic structure
+        assert "ACTION GENERATION AND CONSTRAINTS" in result
+        assert "Triggering event instantiation" in result
+        assert "Action event instantiation" in result
+        assert "Measure instantiation" in result
+        
+        # Verify triggering events (events in conditions but not actions)
+        assert "{ happens(motiondetected, T, T) }" in result
+        
+        # Verify action events (both regular and with within constraints)
+        assert "{ happens(turnonlight, T, T) }" in result  # regular action
+        assert "{ happens(playsound, T1, T2) : T1 <= T2, T2 <= T1+5 }" in result  # within action
+        
+        # Verify measure instantiation for all types
+        assert "{ holds_at(isdaytime, T) }" in result  # boolean
+        assert "{ holds_at(temperature, V, T) :" in result  # numeric 
+        assert "1 { holds_at(mood, happy, T) ; holds_at(mood, sad, T) ; holds_at(mood, neutral, T) } 1" in result  # scale
+        
+        # Verify comment logic is working (complex conditional comments)
+        lines = result.split('\n')
+        comment_lines = [line for line in lines if line.strip().startswith('%')]
+        assert len(comment_lines) >= 3, f"Expected at least 3 comment lines, got {len(comment_lines)}"
+        
+        # Verify section separation
+        sections = result.split('\n\n')
+        assert len(sections) >= 4, f"Expected at least 4 sections, got {len(sections)}"
+
 
 # ========================================================================
 # TEST UTILITIES
@@ -921,9 +968,4 @@ rule_start
     R2 when EncounterHuman then IdentifyActivity
 rule_end
 """
-    }
-
-
-if __name__ == "__main__":
-    # Allow running tests directly
-    pytest.main([__file__, "-v"]) 
+    } 

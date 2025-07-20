@@ -139,39 +139,48 @@ class SleecToClingoConverter:
     def _generate_unless_rules(self, rule, rule_definitions):
         """Generate multiple rules for unless statements with cascading priority"""
         rule_id = rule.id.lower()
-        base_condition = rule.condition
         
-        # Build cascading conditions for each unless clause
-        unless_conditions = []
-        for unless_clause in rule.unless_clauses:
-            unless_conditions.append(unless_clause.condition)
+        # Extract unless conditions for easier processing
+        unless_conditions = self._extract_unless_conditions(rule.unless_clauses)
         
-        # Primary rule: original condition AND NOT all unless conditions
+        # Generate primary rule (original condition AND NOT all unless conditions)
+        self._generate_primary_unless_rule(rule, rule_id, unless_conditions, rule_definitions)
+        
+        # Generate unless clause rules (each with cascading priority)
+        self._generate_unless_clause_rules(rule, rule_id, unless_conditions, rule_definitions)
+    
+    def _extract_unless_conditions(self, unless_clauses):
+        """Extract conditions from unless clauses for easier processing"""
+        return [unless_clause.condition for unless_clause in unless_clauses]
+    
+    def _generate_primary_unless_rule(self, rule, rule_id, unless_conditions, rule_definitions):
+        """Generate the primary rule with negated unless conditions"""
         primary_id = f"{rule_id}_primary"
         rule_definitions.append(f"exp({primary_id}).")
         
         # Build primary antecedent: base condition AND NOT unless1 AND NOT unless2 ...
+        primary_antecedent = self._build_primary_unless_antecedent(rule.condition, unless_conditions)
+        rule_definitions.append(f"antecedent({primary_id}, T) :- {primary_antecedent}.")
+        
+        # Generate primary consequent (skip if negated action)
+        if not rule.action.strip().startswith("not "):
+            consequent_action = self._build_consequent_action(rule.action, rule.within_constraint)
+            rule_definitions.append(f"consequent({primary_id}, T) :- time(T), {consequent_action}.")
+    
+    def _build_primary_unless_antecedent(self, base_condition, unless_conditions):
+        """Build antecedent for primary rule by negating all unless conditions"""
         primary_antecedent = self._convert_condition_to_antecedent(base_condition)
+        
         for unless_condition in unless_conditions:
             unless_antecedent = self._convert_condition_to_antecedent(unless_condition)
-            # Remove "time(T)" from unless condition to avoid duplication
+            # Remove "time(T)" to avoid duplication
             unless_antecedent_clean = unless_antecedent.replace(", time(T)", "")
             primary_antecedent = primary_antecedent.replace(", time(T)", f", not {unless_antecedent_clean}, time(T)")
         
-        rule_definitions.append(f"antecedent({primary_id}, T) :- {primary_antecedent}.")
-        
-        # Primary action (skip if it's a negated action)
-        if not rule.action.strip().startswith("not "):
-            if rule.within_constraint:
-                # Parse constraint to get numeric value (e.g., "3 minutes" -> 3)
-                constraint_parts = rule.within_constraint.split()
-                constraint_value = constraint_parts[0]
-                consequent_action = f"happens({rule.action.lower()}, T, T2), T <= T2, T2 <= T+{constraint_value}, time(T2)"
-            else:
-                consequent_action = f"happens({rule.action.lower()}, T, T)"
-            rule_definitions.append(f"consequent({primary_id}, T) :- time(T), {consequent_action}.")
-        
-        # Unless rules: each unless clause gets higher priority
+        return primary_antecedent
+    
+    def _generate_unless_clause_rules(self, rule, rule_id, unless_conditions, rule_definitions):
+        """Generate rules for each unless clause with cascading priority"""
         for i, unless_clause in enumerate(rule.unless_clauses, 1):
             # Skip unless rule entirely if it's a negated action
             if unless_clause.action.strip().startswith("not "):
@@ -180,25 +189,42 @@ class SleecToClingoConverter:
             unless_id = f"{rule_id}_unless{i}"
             rule_definitions.append(f"exp({unless_id}).")
             
-            # Build unless antecedent: base condition AND this unless condition AND NOT higher priority unless conditions
-            unless_antecedent = self._convert_condition_to_antecedent(base_condition)
-            
-            # Add this unless condition
-            this_unless_condition = self._convert_condition_to_antecedent(unless_clause.condition)
-            this_unless_clean = this_unless_condition.replace(", time(T)", "")
-            unless_antecedent = unless_antecedent.replace(", time(T)", f", {this_unless_clean}, time(T)")
-            
-            # Add negation of higher priority unless conditions (later in the list)
-            for j in range(i, len(rule.unless_clauses)):
-                higher_unless_condition = self._convert_condition_to_antecedent(rule.unless_clauses[j].condition)
-                higher_unless_clean = higher_unless_condition.replace(", time(T)", "")
-                unless_antecedent = unless_antecedent.replace(", time(T)", f", not {higher_unless_clean}, time(T)")
-            
+            # Build unless antecedent with cascading priority
+            unless_antecedent = self._build_unless_clause_antecedent(
+                rule.condition, unless_clause, rule.unless_clauses, i
+            )
             rule_definitions.append(f"antecedent({unless_id}, T) :- {unless_antecedent}.")
             
-            # Unless action
+            # Generate unless consequent
             unless_consequent_action = f"happens({unless_clause.action.lower()}, T, T)"
             rule_definitions.append(f"consequent({unless_id}, T) :- time(T), {unless_consequent_action}.")
+    
+    def _build_unless_clause_antecedent(self, base_condition, unless_clause, all_unless_clauses, clause_index):
+        """Build antecedent for unless clause with cascading priority logic"""
+        unless_antecedent = self._convert_condition_to_antecedent(base_condition)
+        
+        # Add this unless condition
+        this_unless_condition = self._convert_condition_to_antecedent(unless_clause.condition)
+        this_unless_clean = this_unless_condition.replace(", time(T)", "")
+        unless_antecedent = unless_antecedent.replace(", time(T)", f", {this_unless_clean}, time(T)")
+        
+        # Add negation of higher priority unless conditions (later in the list)
+        for j in range(clause_index, len(all_unless_clauses)):
+            higher_unless_condition = self._convert_condition_to_antecedent(all_unless_clauses[j].condition)
+            higher_unless_clean = higher_unless_condition.replace(", time(T)", "")
+            unless_antecedent = unless_antecedent.replace(", time(T)", f", not {higher_unless_clean}, time(T)")
+        
+        return unless_antecedent
+    
+    def _build_consequent_action(self, action, within_constraint):
+        """Build consequent action with optional within constraint"""
+        if within_constraint:
+            # Parse constraint to get numeric value (e.g., "3 minutes" -> 3)
+            constraint_parts = within_constraint.split()
+            constraint_value = constraint_parts[0]
+            return f"happens({action.lower()}, T, T2), T <= T2, T2 <= T+{constraint_value}, time(T2)"
+        else:
+            return f"happens({action.lower()}, T, T)"
     
     def _generate_regular_rule(self, rule, rule_definitions):
         """Generate regular rule (possibly with otherwise clause)"""

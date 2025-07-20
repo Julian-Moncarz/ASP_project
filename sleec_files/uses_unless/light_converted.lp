@@ -93,8 +93,8 @@ holds_v(r1_unless1, T):-
 { happens(motiondetected, T, T) } :- time(T).
 
 % Action event instantiation 
-{ happens(turnonlight, T, T) } :- time(T).
 { happens(playjingle, T, T) } :- time(T).
+{ happens(turnonlight, T, T) } :- time(T).
 
 % Measure instantiation
 { holds_at(isoccupied, T) } :- time(T).
