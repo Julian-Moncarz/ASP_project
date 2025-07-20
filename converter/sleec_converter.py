@@ -551,6 +551,13 @@ holds_v({otherwise_id}, T):-
             if rule.otherwise_action:
                 # Otherwise actions don't inherit within constraints
                 action_events_without_within.add(rule.otherwise_action.lower())
+            
+            # Extract events from unless clause actions
+            if rule.unless_clauses:
+                for unless_clause in rule.unless_clauses:
+                    if unless_clause.action and not unless_clause.action.strip().startswith("not "):
+                        # Unless actions don't inherit within constraints from primary rule
+                        action_events_without_within.add(unless_clause.action.lower())
         
         return action_events_with_within, action_events_without_within
     
@@ -563,6 +570,12 @@ holds_v({otherwise_id}, T):-
                 action_events.add(rule.action.lower())
             if rule.otherwise_action:
                 action_events.add(rule.otherwise_action.lower())
+            
+            # Add unless clause actions
+            if rule.unless_clauses:
+                for unless_clause in rule.unless_clauses:
+                    if unless_clause.action and not unless_clause.action.strip().startswith("not "):
+                        action_events.add(unless_clause.action.lower())
         
         return action_events
     
