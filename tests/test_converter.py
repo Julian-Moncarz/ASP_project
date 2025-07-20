@@ -771,6 +771,43 @@ rule_end
         assert "exp(r1_primary)." in result
         assert "exp(r1_unless1)." in result
 
+    def test_convert_condition_to_antecedent_comprehensive(self):
+        """Test comprehensive condition conversion behavior before refactoring - BEHAVIOR CAPTURE"""
+        self.converter.events = [
+            Event("MotionDetected", 1),
+            Event("DoorOpen", 2), 
+            Event("WithinEvent", 3)
+        ]
+        self.converter.measures = [Measure("isDaytime", MeasureType.BOOLEAN, 1)]
+        
+        # Mock within events (WithinEvent has within constraints)
+        self.converter.rules = [Rule("R1", "WithinEvent", "SomeAction", 1, within_constraint="5 minutes")]
+        
+        # Test 1: Simple event
+        result = self.converter._convert_condition_to_antecedent("MotionDetected")
+        expected = "happens(motiondetected, T, T), time(T)"
+        assert result == expected, f"Simple event: expected {expected}, got {result}"
+        
+        # Test 2: Event with measure
+        result = self.converter._convert_condition_to_antecedent("MotionDetected and {isDaytime}")
+        expected = "happens(motiondetected, T, T), holds_at(isdaytime, T), time(T)"
+        assert result == expected, f"Event with measure: expected {expected}, got {result}"
+        
+        # Test 3: Complex condition with NOT
+        result = self.converter._convert_condition_to_antecedent("DoorOpen and (not {isDaytime})")
+        expected = "happens(dooropen, T, T), not holds_at(isdaytime, T), time(T)"
+        assert result == expected, f"Complex with NOT: expected {expected}, got {result}"
+        
+        # Test 4: Within event (temporal) - Fix based on actual behavior
+        result = self.converter._convert_condition_to_antecedent("WithinEvent")
+        expected = "happens(withinevent, T, T), time(T)"  # Within events in conditions are still T,T
+        assert result == expected, f"Within event: expected {expected}, got {result}"
+        
+        # Test 5: Mixed case conversion
+        result = self.converter._convert_condition_to_antecedent("MotionDetected AND {isDaytime}")
+        expected = "happens(motiondetected, T, T), holds_at(isdaytime, T), time(T)"
+        assert result == expected, f"Mixed case: expected {expected}, got {result}"
+
 
 # ========================================================================
 # TEST UTILITIES
