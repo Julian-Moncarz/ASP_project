@@ -16,6 +16,7 @@ import re
 import tempfile
 import subprocess
 from pathlib import Path
+from typing import List
 from unittest.mock import patch, MagicMock
 
 import sys
@@ -895,6 +896,82 @@ rule_end
         # Verify section separation
         sections = result.split('\n\n')
         assert len(sections) >= 4, f"Expected at least 4 sections, got {len(sections)}"
+
+    def test_parse_rules_comprehensive(self):
+        """Test rule parsing behavior before refactoring - BEHAVIOR CAPTURE"""
+        from converter.parser import SleecParser
+        
+        # Create complex rules content with all features
+        rules_content = """
+        R1 when MotionDetected then TurnOnLight
+        R2 when MotionDetected and {isDaytime} then TurnOnLight within 5 minutes
+        R3 when MotionDetected then TurnOnLight otherwise TurnOffLight
+        R4 when MotionDetected then TurnOnLight unless ({isNight}) then PlaySound unless ({isQuiet}) then Vibrate
+        R5 when MotionDetected and {temperature} = hot then TurnOnFan within 3 seconds otherwise DoNothing
+        """
+        
+        # Test the method directly
+        parser = SleecParser()
+        parser._reset()
+        
+        # Mock original_lines for line number tracking  
+        original_lines = [str(line) for line in rules_content.split('\n')]
+        
+        # Test the parsing
+        parser._parse_rules(rules_content, original_lines)
+        
+        # Verify parsed rules structure
+        assert len(parser.rules) == 5, f"Expected 5 rules, got {len(parser.rules)}"
+        
+        # Test R1: Simple rule
+        r1 = parser.rules[0]
+        assert r1.id == "R1"
+        assert r1.condition.strip() == "MotionDetected"
+        assert r1.action == "TurnOnLight"
+        assert r1.otherwise_action is None
+        assert r1.unless_clauses is None
+        assert r1.within_constraint is None
+        
+        # Test R2: Rule with within constraint
+        r2 = parser.rules[1]
+        assert r2.id == "R2"
+        assert r2.condition.strip() == "MotionDetected and {isDaytime}"
+        assert r2.action == "TurnOnLight"
+        assert r2.within_constraint == "5 minutes"
+        assert r2.otherwise_action is None
+        assert r2.unless_clauses is None
+        
+        # Test R3: Rule with otherwise clause
+        r3 = parser.rules[2]
+        assert r3.id == "R3"
+        assert r3.condition.strip() == "MotionDetected"
+        assert r3.action == "TurnOnLight"
+        assert r3.otherwise_action == "TurnOffLight"
+        assert r3.unless_clauses is None
+        assert r3.within_constraint is None
+        
+        # Test R4: Rule with multiple unless clauses
+        r4 = parser.rules[3]
+        assert r4.id == "R4"
+        assert r4.condition.strip() == "MotionDetected"
+        assert r4.action == "TurnOnLight"
+        assert r4.otherwise_action is None  # unless takes precedence over otherwise
+        assert r4.unless_clauses is not None
+        assert len(r4.unless_clauses) == 2
+        assert r4.unless_clauses[0].condition == "{isNight}"
+        assert r4.unless_clauses[0].action == "PlaySound"
+        assert r4.unless_clauses[1].condition == "{isQuiet}"
+        assert r4.unless_clauses[1].action == "Vibrate"
+        
+        # Test R5: Rule with within constraint AND otherwise clause
+        # NOTE: Current parser doesn't support within+otherwise combination properly
+        r5 = parser.rules[4]
+        assert r5.id == "R5"
+        assert r5.condition.strip() == "MotionDetected and {temperature} = hot"
+        assert r5.action == "TurnOnFan"
+        assert r5.within_constraint == "3 seconds"
+        assert r5.otherwise_action is None  # Current behavior: otherwise is ignored when within is present
+        assert r5.unless_clauses is None
 
 
 # ========================================================================
