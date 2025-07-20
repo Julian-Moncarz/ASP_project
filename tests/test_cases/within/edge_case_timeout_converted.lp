@@ -6,7 +6,7 @@
 % Format: Antecedent/consequent structure with temporal constraints
 % 
 % Generated Rules:
-% R1: TriggerEvent -> ActionEvent
+% R1: StartProcess -> FinishProcess within 15 minutes
 
 % =============================================================================
 % DOMAIN DEFINITIONS
@@ -15,8 +15,8 @@
 time(0..10).
 
 % Events
-event(triggerevent).
-event(actionevent).
+event(startprocess).
+event(finishprocess).
 
 % =============================================================================
 % SLEEC RULE DEFINITIONS
@@ -24,9 +24,9 @@ event(actionevent).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(triggerevent, T, T), time(T).
+antecedent(r1, T) :- happens(startprocess, T, T), time(T).
 
-consequent(r1, T) :- time(T), happens(actionevent, T, T).
+consequent(r1, T) :- time(T), happens(finishprocess, T, T2), T <= T2, T2 <= T+15, time(T2).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -63,10 +63,10 @@ holds_v(r1, T):-
 % =============================================================================
 
 % Triggering event instantiation
-{ happens(triggerevent, T, T) } :- time(T).
+{ happens(startprocess, T, T) } :- time(T).
 
-% Action event instantiation
-{ happens(actionevent, T, T) } :- time(T).
+% Action event instantiation (window constrained by time domain)
+{ happens(finishprocess, T1, T2) : T1 <= T2, T2 <= T1+15 } :- time(T1), time(T2).
 
 % =============================================================================
 % OUTPUT SPECIFICATION

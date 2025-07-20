@@ -56,6 +56,7 @@ class Rule:
     line_number: int
     otherwise_action: Optional[str] = None
     unless_clauses: Optional[List[UnlessClause]] = None
+    within_constraint: Optional[str] = None
 
 class SleecParser:
     """Shared SLEEC parser for extracting definitions and rules"""
@@ -176,9 +177,18 @@ class SleecParser:
         matches = re.findall(rule_pattern, rules_content, re.DOTALL)
         
         for rule_id, condition, action_part in matches:
-            # Parse unless clauses first (they take precedence over otherwise)
-            unless_clauses = []
+            # Parse within constraint first 
+            within_constraint = None
             remaining_action = action_part.strip()
+            
+            # Extract within constraint using regex
+            within_match = re.search(r'(.*?)\s+within\s+(\d+\s+\w+)', remaining_action)
+            if within_match:
+                remaining_action = within_match.group(1).strip()
+                within_constraint = within_match.group(2).strip()
+            
+            # Parse unless clauses (they take precedence over otherwise)
+            unless_clauses = []
             
             # Extract all unless clauses using regex
             unless_pattern = r'\s+unless\s+\(([^)]+)\)\s+then\s+(.*?)(?=\s+unless|$)'
@@ -203,12 +213,12 @@ class SleecParser:
                 
             else:
                 # Handle otherwise clause (only if no unless clauses)
-                otherwise_match = re.search(r'(.*?)\s+otherwise\s+(.*)', action_part, re.DOTALL)
+                otherwise_match = re.search(r'(.*?)\s+otherwise\s+(.*)', remaining_action, re.DOTALL)
                 if otherwise_match:
                     action = otherwise_match.group(1).strip()
                     otherwise_action = otherwise_match.group(2).strip()
                 else:
-                    action = action_part.strip()
+                    action = remaining_action.strip()
                     otherwise_action = None
             
             # Find line number for this rule
@@ -221,7 +231,8 @@ class SleecParser:
                 action, 
                 line_num, 
                 otherwise_action,
-                unless_clauses if unless_clauses else None
+                unless_clauses if unless_clauses else None,
+                within_constraint
             ))
 
     @staticmethod

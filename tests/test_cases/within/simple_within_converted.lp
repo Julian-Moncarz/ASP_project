@@ -6,7 +6,7 @@
 % Format: Antecedent/consequent structure with temporal constraints
 % 
 % Generated Rules:
-% R1: TriggerEvent -> ActionEvent
+% R1: MotionDetected and {isArmed} -> AlarmSound within 3 minutes
 
 % =============================================================================
 % DOMAIN DEFINITIONS
@@ -15,8 +15,11 @@
 time(0..10).
 
 % Events
-event(triggerevent).
-event(actionevent).
+event(motiondetected).
+event(alarmsound).
+
+% Measures
+measure(isarmed).
 
 % =============================================================================
 % SLEEC RULE DEFINITIONS
@@ -24,9 +27,9 @@ event(actionevent).
 
 exp(r1).
 
-antecedent(r1, T) :- happens(triggerevent, T, T), time(T).
+antecedent(r1, T) :- happens(motiondetected, T, T), holds_at(isarmed, T), time(T).
 
-consequent(r1, T) :- time(T), happens(actionevent, T, T).
+consequent(r1, T) :- time(T), happens(alarmsound, T, T2), T <= T2, T2 <= T+3, time(T2).
 
 % =============================================================================
 % RULE SATISFACTION LOGIC
@@ -62,14 +65,19 @@ holds_v(r1, T):-
 % ACTION GENERATION AND CONSTRAINTS
 % =============================================================================
 
-% Triggering event instantiation
-{ happens(triggerevent, T, T) } :- time(T).
+% Triggering event instantiation (TriggerTime = ActualTime for non-within events)
+{ happens(motiondetected, T, T) } :- time(T).
 
-% Action event instantiation
-{ happens(actionevent, T, T) } :- time(T).
+% Action event instantiation (can be triggered at any time within temporal window)
+{ happens(alarmsound, T1, T2) : T1 <= T2, T2 <= T1+3 } :- time(T1), time(T2).
+
+% Measure instantiation
+{ holds_at(isarmed, T) } :- time(T).
 
 % =============================================================================
 % OUTPUT SPECIFICATION
 % =============================================================================
+
+#show holds_at/2.
 
 #show happens/3. 
