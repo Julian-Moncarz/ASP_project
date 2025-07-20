@@ -498,77 +498,130 @@ holds_v({otherwise_id}, T):-
         """Generate action generation and constraints"""
         sections = []
         
-        # Get action event information first for comment logic
+        # Generate each section with focused methods
+        triggering_section = self._generate_triggering_events_section()
+        if triggering_section:
+            sections.append(triggering_section)
+        
+        action_section = self._generate_action_events_section()
+        if action_section:
+            sections.append(action_section)
+        
+        measure_section = self._generate_measure_instantiation_section()
+        if measure_section:
+            sections.append(measure_section)
+        
+        return self._assemble_action_generation_sections(sections)
+    
+    def _generate_triggering_events_section(self) -> str:
+        """Generate triggering events with contextual comments"""
+        triggering_events = self._get_triggering_events()
+        if not triggering_events:
+            return ""
+        
+        triggering_rules = [f"{{ happens({event}, T, T) }} :- time(T)." for event in triggering_events]
+        comment = self._get_triggering_events_comment()
+        
+        return comment + "\n" + "\n".join(triggering_rules)
+    
+    def _get_triggering_events_comment(self) -> str:
+        """Generate contextual comment for triggering events based on system characteristics"""
         action_events_with_within, action_events_without_within = self._get_action_events_with_constraints()
         
-        # Generate triggering events (events in conditions but not in actions)
-        triggering_events = self._get_triggering_events()
-        if triggering_events:
-            triggering_rules = []
-            for event in triggering_events:
-                triggering_rules.append(f"{{ happens({event}, T, T) }} :- time(T).")
-            
-            # Choose comment based on event type patterns
-            if action_events_with_within and action_events_without_within:
-                # Mixed: both within and immediate events
-                comment = "% Triggering event instantiation (TriggerTime = ActualTime for direct triggers)"
-            elif action_events_with_within and self.measures:
-                # Only within events, but has measures
-                comment = "% Triggering event instantiation (TriggerTime = ActualTime for non-within events)"
+        # Choose comment based on event type patterns
+        if action_events_with_within and action_events_without_within:
+            # Mixed: both within and immediate events
+            return "% Triggering event instantiation (TriggerTime = ActualTime for direct triggers)"
+        elif action_events_with_within and self.measures:
+            # Only within events, but has measures
+            return "% Triggering event instantiation (TriggerTime = ActualTime for non-within events)"
+        else:
+            # Simple case: no measures or only immediate events
+            return "% Triggering event instantiation"
+    
+    def _generate_action_events_section(self) -> str:
+        """Generate action events with contextual comments and constraints"""
+        action_events_with_within, action_events_without_within = self._get_action_events_with_constraints()
+        
+        if not action_events_with_within and not action_events_without_within:
+            return ""
+        
+        action_rules = []
+        
+        # Add non-within events first
+        action_rules.extend(self._generate_regular_action_rules(action_events_without_within))
+        
+        # Add within events
+        action_rules.extend(self._generate_within_action_rules(action_events_with_within))
+        
+        comment = self._get_action_events_comment(action_events_with_within, action_events_without_within)
+        
+        return comment + "\n" + "\n".join(action_rules)
+    
+    def _generate_regular_action_rules(self, action_events_without_within) -> List[str]:
+        """Generate rules for regular (non-within) action events"""
+        return [f"{{ happens({event}, T, T) }} :- time(T)." for event in action_events_without_within]
+    
+    def _generate_within_action_rules(self, action_events_with_within) -> List[str]:
+        """Generate rules for action events with within constraints"""
+        within_rules = []
+        for event, constraint in action_events_with_within:
+            constraint_parts = constraint.split()
+            constraint_value = constraint_parts[0]
+            within_rules.append(f"{{ happens({event}, T1, T2) : T1 <= T2, T2 <= T1+{constraint_value} }} :- time(T1), time(T2).")
+        return within_rules
+    
+    def _get_action_events_comment(self, action_events_with_within, action_events_without_within) -> str:
+        """Generate contextual comment for action events based on constraint characteristics"""
+        if action_events_without_within:
+            return "% Action event instantiation "
+        else:
+            # Check if any constraint is large (might extend beyond time domain)
+            has_large_constraint = any(int(constraint.split()[0]) > self.config.max_time 
+                                      for _, constraint in action_events_with_within)
+            if has_large_constraint:
+                return "% Action event instantiation (window constrained by time domain)"
             else:
-                # Simple case: no measures or only immediate events
-                comment = "% Triggering event instantiation"
-            
-            sections.append(comment + "\n" + "\n".join(triggering_rules))
+                return "% Action event instantiation (can be triggered at any time within temporal window)"
+    
+    def _generate_measure_instantiation_section(self) -> str:
+        """Generate measure instantiation for all measure types"""
+        if not self.measures:
+            return ""
         
-        # Generate action events (events that appear as consequences)
+        measure_rules = []
+        for measure in self.measures:
+            measure_rules.append(self._generate_single_measure_rule(measure))
         
-        if action_events_with_within or action_events_without_within:
-            action_rules = []
-            
-            # Add non-within events first
-            for event in action_events_without_within:
-                action_rules.append(f"{{ happens({event}, T, T) }} :- time(T).")
-            
-            # Add within events
-            for event, constraint in action_events_with_within:
-                constraint_parts = constraint.split()
-                constraint_value = constraint_parts[0]
-                action_rules.append(f"{{ happens({event}, T1, T2) : T1 <= T2, T2 <= T1+{constraint_value} }} :- time(T1), time(T2).")
-            
-            # Choose comment based on context
-            if action_events_without_within:
-                comment = "% Action event instantiation "
-            else:
-                # Check if any constraint is large (might extend beyond time domain)
-                has_large_constraint = any(int(constraint.split()[0]) > self.config.max_time 
-                                          for _, constraint in action_events_with_within)
-                if has_large_constraint:
-                    comment = "% Action event instantiation (window constrained by time domain)"
-                else:
-                    comment = "% Action event instantiation (can be triggered at any time within temporal window)"
-            
-            sections.append(comment + "\n" + "\n".join(action_rules))
+        return "% Measure instantiation\n" + "\n".join(measure_rules)
+    
+    def _generate_single_measure_rule(self, measure) -> str:
+        """Generate instantiation rule for a single measure based on its type"""
+        measure_name = measure.name.lower()
         
-        # Add measure instantiation if measures exist
-        if self.measures:
-            measure_rules = []
-            for measure in self.measures:
-                if measure.type == MeasureType.BOOLEAN:
-                    measure_rules.append(f"{{ holds_at({measure.name.lower()}, T) }} :- time(T).")
-                elif measure.type == MeasureType.NUMERIC:
-                    measure_rules.append(f"{{ holds_at({measure.name.lower()}, V, T) : {self.config.numeric_range} }} :- time(T).")
-                elif measure.type == MeasureType.SCALE and measure.scale_values:
-                    scale_options = " ; ".join([f"holds_at({measure.name.lower()}, {value.lower()}, T)" for value in measure.scale_values])
-                    measure_rules.append(f"1 {{ {scale_options} }} 1 :- time(T).")
-            
-            sections.append("% Measure instantiation\n" + "\n".join(measure_rules))
+        if measure.type == MeasureType.BOOLEAN:
+            return f"{{ holds_at({measure_name}, T) }} :- time(T)."
+        elif measure.type == MeasureType.NUMERIC:
+            return f"{{ holds_at({measure_name}, V, T) : {self.config.numeric_range} }} :- time(T)."
+        elif measure.type == MeasureType.SCALE and measure.scale_values:
+            scale_options = " ; ".join([f"holds_at({measure_name}, {value.lower()}, T)" for value in measure.scale_values])
+            return f"1 {{ {scale_options} }} 1 :- time(T)."
+        else:
+            # Fallback for unknown types
+            return f"{{ holds_at({measure_name}, T) }} :- time(T)."
+    
+    def _assemble_action_generation_sections(self, sections: List[str]) -> str:
+        """Assemble all action generation sections with proper formatting"""
+        if not sections:
+            return ""
         
-        return textwrap.dedent("""
+        header = textwrap.dedent("""
         % =============================================================================
         % ACTION GENERATION AND CONSTRAINTS
         % =============================================================================
-        """).strip() + "\n\n" + "\n\n".join(sections)
+        """).strip()
+        
+        return header + "\n\n" + "\n\n".join(sections)
     
     def _extract_valid_actions_from_rule(self, rule) -> List[str]:
         """Extract all valid action events from a rule (excluding negated actions)"""
