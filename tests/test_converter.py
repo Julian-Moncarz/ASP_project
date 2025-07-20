@@ -742,6 +742,35 @@ rule_end
         with pytest.raises(Exception):  # Will be more specific once implemented
             result = self.converter.convert_sleec_string(invalid_sleec)
 
+    def test_unless_action_choice_rules_generation(self):
+        """Test that unless clause actions get choice rules generated - BUG REPRODUCTION"""
+        sleec_content = """
+def_start
+    event MotionDetected
+    event TurnOnLight  
+    event PlayJingle
+    measure isDaytime: boolean
+def_end
+
+rule_start
+    R1 when MotionDetected then TurnOnLight unless ({isDaytime}) then PlayJingle
+rule_end
+"""
+        
+        result = self.converter.convert_sleec_string(sleec_content)
+        
+        # Check that BOTH primary and unless actions get choice rules
+        assert "{ happens(turnonlight, T, T) } :- time(T)." in result, "Primary action should have choice rule"
+        assert "{ happens(playjingle, T, T) } :- time(T)." in result, "Unless action should have choice rule - THIS IS THE BUG!"
+        
+        # Also check that both events are declared
+        assert "event(turnonlight)." in result
+        assert "event(playjingle)." in result
+        
+        # And both rules are generated 
+        assert "exp(r1_primary)." in result
+        assert "exp(r1_unless1)." in result
+
 
 # ========================================================================
 # TEST UTILITIES

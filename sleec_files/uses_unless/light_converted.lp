@@ -1,11 +1,11 @@
 % =============================================================================
-% SLEEC to Clingo Conversion (Dalal's Format)
+% SLEEC to Clingo Conversion (Dalal's Format with Within Support)
 % =============================================================================
 % 
 % This file was automatically generated from SLEEC rules.
-% Format: Antecedent/consequent structure with rule satisfaction logic
+% Format: Antecedent/consequent structure with temporal constraints
 % 
-% Generated Rules:
+% Rules Converted:
 % R1: MotionDetected -> TurnOnLight
 
 % =============================================================================
@@ -82,7 +82,6 @@ holds_v(r1_unless1, T):-
     not antecedent(r1_unless1, T),
     not consequent(r1_unless1, T).
 
-
 % Hard constraint: every rule must be satisfied at every time point
 :- exp(R), time(T), not holds(R,T).
 
@@ -93,7 +92,7 @@ holds_v(r1_unless1, T):-
 % Triggering event instantiation
 { happens(motiondetected, T, T) } :- time(T).
 
-% Action event instantiation
+% Action event instantiation 
 { happens(turnonlight, T, T) } :- time(T).
 
 % Measure instantiation
@@ -106,4 +105,4 @@ holds_v(r1_unless1, T):-
 
 #show holds_at/2.
 
-#show happens/2.
+#show happens/3. 
