@@ -3,8 +3,8 @@
 Shared SLEEC Parser
 ==================
 
-This module provides common SLEEC parsing functionality used by both
-the original and Dalal converters.
+This module provides  SLEEC parsing functionality used by
+the converter.
 
 Classes:
     MeasureType: Enumeration of measure types (boolean, numeric, scale)
@@ -186,6 +186,12 @@ class SleecParser:
             if within_match:
                 remaining_action = within_match.group(1).strip()
                 within_constraint = within_match.group(2).strip()
+            else:
+                # Also check for within constraints using constants (e.g., "within notifyDelay minutes")
+                within_match = re.search(r'(.*?)\s+within\s+(\w+\s+\w+)', remaining_action)
+                if within_match:
+                    remaining_action = within_match.group(1).strip()
+                    within_constraint = within_match.group(2).strip()
             
             # Parse unless clauses (they take precedence over otherwise)
             unless_clauses = []
@@ -258,6 +264,8 @@ class SleecParser:
                     action_clean = action.strip()
                     if action_clean.startswith("not "):
                         action_clean = action_clean[4:].strip()
+                    # Extract only the event name (first word) to avoid line breaks and unless clauses
+                    action_clean = action_clean.split()[0] if action_clean.split() else action_clean
                     if action_clean not in defined_events:
                         errors.append(f"Error: Undefined event '{action_clean}' referenced in rule {rule.id} at line {rule.line_number}")
             
@@ -296,6 +304,8 @@ class SleecParser:
                         action_clean = action.strip()
                         if action_clean.startswith("not "):
                             action_clean = action_clean[4:].strip()
+                        # Extract only the event name (first word) to avoid line breaks and unless clauses
+                        action_clean = action_clean.split()[0] if action_clean.split() else action_clean
                         if action_clean not in defined_events:
                             missing_events.add(action_clean)
                 

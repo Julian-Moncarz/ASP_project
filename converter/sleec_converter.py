@@ -219,9 +219,10 @@ class SleecToClingoConverter:
     def _build_consequent_action(self, action, within_constraint):
         """Build consequent action with optional within constraint"""
         if within_constraint:
-            # Parse constraint to get numeric value (e.g., "3 minutes" -> 3)
+            # Parse constraint to get value (e.g., "3 minutes" -> 3 or "notifyDelay minutes" -> notifyDelay)
             constraint_parts = within_constraint.split()
             constraint_value = constraint_parts[0]
+            # Use constraint value directly - it can be a constant name or number
             return f"happens({action.lower()}, T, T2), T <= T2, T2 <= T+{constraint_value}, time(T2)"
         else:
             return f"happens({action.lower()}, T, T)"
@@ -248,9 +249,10 @@ class SleecToClingoConverter:
         
         # Consequent logic
         if rule.within_constraint:
-            # Parse constraint to get numeric value (e.g., "3 minutes" -> 3)
+            # Parse constraint to get value (e.g., "3 minutes" -> 3 or "notifyDelay minutes" -> notifyDelay)
             constraint_parts = rule.within_constraint.split()
             constraint_value = constraint_parts[0]
+            # Use constraint value directly - it can be a constant name or number
             consequent_action = f"happens({rule.action.lower()}, T, T2), T <= T2, T2 <= T+{constraint_value}, time(T2)"
         else:
             consequent_action = f"happens({rule.action.lower()}, T, T)"
@@ -568,6 +570,7 @@ holds_v({otherwise_id}, T):-
         for event, constraint in action_events_with_within:
             constraint_parts = constraint.split()
             constraint_value = constraint_parts[0]
+            # Use constraint value directly - it can be a constant name or number
             within_rules.append(f"{{ happens({event}, T1, T2) : T1 <= T2, T2 <= T1+{constraint_value} }} :- time(T1), time(T2).")
         return within_rules
     
@@ -577,8 +580,19 @@ holds_v({otherwise_id}, T):-
             return "% Action event instantiation "
         else:
             # Check if any constraint is large (might extend beyond time domain)
-            has_large_constraint = any(int(constraint.split()[0]) > self.config.max_time 
-                                      for _, constraint in action_events_with_within)
+            # Handle both numeric constraints and constant names
+            has_large_constraint = False
+            for _, constraint in action_events_with_within:
+                constraint_value = constraint.split()[0]
+                try:
+                    if int(constraint_value) > self.config.max_time:
+                        has_large_constraint = True
+                        break
+                except ValueError:
+                    # Constraint uses a constant name, assume it could be large
+                    has_large_constraint = True
+                    break
+            
             if has_large_constraint:
                 return "% Action event instantiation (window constrained by time domain)"
             else:
