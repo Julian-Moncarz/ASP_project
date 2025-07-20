@@ -515,6 +515,26 @@ holds_v({otherwise_id}, T):-
         % =============================================================================
         """).strip() + "\n\n" + "\n\n".join(sections)
     
+    def _extract_valid_actions_from_rule(self, rule) -> List[str]:
+        """Extract all valid action events from a rule (excluding negated actions)"""
+        actions = []
+        
+        # Primary action
+        if rule.action and not rule.action.strip().startswith("not "):
+            actions.append(rule.action.lower())
+        
+        # Otherwise action  
+        if rule.otherwise_action and not rule.otherwise_action.strip().startswith("not "):
+            actions.append(rule.otherwise_action.lower())
+        
+        # Unless clause actions
+        if rule.unless_clauses:
+            for unless_clause in rule.unless_clauses:
+                if unless_clause.action and not unless_clause.action.strip().startswith("not "):
+                    actions.append(unless_clause.action.lower())
+        
+        return actions
+    
     def _get_triggering_events(self) -> Set[str]:
         """Get events that appear in conditions but not in actions (triggering events)"""
         condition_events = set()
@@ -528,10 +548,8 @@ holds_v({otherwise_id}, T):-
                     condition_events.add(event.name.lower())
             
             # Extract events from actions
-            if rule.action:
-                action_events.add(rule.action.lower())
-            if rule.otherwise_action:
-                action_events.add(rule.otherwise_action.lower())
+            actions = self._extract_valid_actions_from_rule(rule)
+            action_events.update(actions)
         
         # Triggering events are those in conditions but not in actions
         return condition_events - action_events
@@ -542,21 +560,20 @@ holds_v({otherwise_id}, T):-
         action_events_without_within = set()
         
         for rule in self.rules:
-            # Extract events from actions
-            if rule.action:
+            # Handle primary action with possible within constraint
+            if rule.action and not rule.action.strip().startswith("not "):
                 if rule.within_constraint:
                     action_events_with_within.append((rule.action.lower(), rule.within_constraint))
                 else:
                     action_events_without_within.add(rule.action.lower())
-            if rule.otherwise_action:
-                # Otherwise actions don't inherit within constraints
+            
+            # Handle otherwise and unless actions (no within constraints)
+            if rule.otherwise_action and not rule.otherwise_action.strip().startswith("not "):
                 action_events_without_within.add(rule.otherwise_action.lower())
             
-            # Extract events from unless clause actions
             if rule.unless_clauses:
                 for unless_clause in rule.unless_clauses:
                     if unless_clause.action and not unless_clause.action.strip().startswith("not "):
-                        # Unless actions don't inherit within constraints from primary rule
                         action_events_without_within.add(unless_clause.action.lower())
         
         return action_events_with_within, action_events_without_within
@@ -566,16 +583,8 @@ holds_v({otherwise_id}, T):-
         action_events = set()
         
         for rule in self.rules:
-            if rule.action:
-                action_events.add(rule.action.lower())
-            if rule.otherwise_action:
-                action_events.add(rule.otherwise_action.lower())
-            
-            # Add unless clause actions
-            if rule.unless_clauses:
-                for unless_clause in rule.unless_clauses:
-                    if unless_clause.action and not unless_clause.action.strip().startswith("not "):
-                        action_events.add(unless_clause.action.lower())
+            actions = self._extract_valid_actions_from_rule(rule)
+            action_events.update(actions)
         
         return action_events
     
